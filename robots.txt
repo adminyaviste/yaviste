@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /ver-pedidos-admin.html
+Disallow: /hacer-pedido.html
+
+Sitemap: https://publicidadyaviste.com/sitemap.xml

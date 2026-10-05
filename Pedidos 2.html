@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ya Viste — Pedidos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1A1A1A;
+    --paper:#F7F5EF;
+    --paper-2:#FFFFFF;
+    --line:#E3DFD3;
+    --cyan:#00AEEF;
+    --magenta:#E6007E;
+    --yellow:#FFC400;
+    --teal:#0B4F6C;
+    --teal-dark:#083A50;
+    --muted:#78736A;
+    --danger:#C0392B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{font-family:'Archivo Black',sans-serif;}
+
+  header.app{
+    background:var(--teal-dark);
+    color:#fff;
+    padding:18px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    position:sticky;
+    top:0;
+    z-index:20;
+  }
+  header.app .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  header.app .eye{
+    width:30px;height:30px;border-radius:50%;
+    background:conic-gradient(var(--cyan),var(--magenta),var(--yellow),var(--cyan));
+    flex-shrink:0;
+    position:relative;
+  }
+  header.app .eye::after{
+    content:"";
+    position:absolute;inset:9px;
+    background:var(--teal-dark);
+    border-radius:50%;
+  }
+  header.app h1{
+    font-size:17px;
+    margin:0;
+    letter-spacing:0.3px;
+  }
+  header.app .sub{
+    font-size:11px;
+    color:#B7CBD3;
+    margin-top:1px;
+  }
+  .btn{
+    border:none;
+    border-radius:8px;
+    padding:10px 16px;
+    font-family:inherit;
+    font-weight:600;
+    font-size:13.5px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition:transform .1s ease, box-shadow .15s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--magenta);color:#fff;}
+  .btn-secondary{background:#fff;color:var(--teal-dark);border:1.5px solid var(--line);}
+  .btn-ghost{background:transparent;color:var(--teal-dark);padding:8px 10px;}
+  .btn-teal{background:var(--teal);color:#fff;}
+  .btn-wa{background:#25D366;color:#fff;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+  main{
+    max-width:980px;
+    margin:0 auto;
+    padding:20px 16px 80px;
+  }
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .filters{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .chip{
+    border:1.5px solid var(--line);
+    background:var(--paper-2);
+    padding:6px 12px;
+    border-radius:100px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+    color:var(--muted);
+  }
+  .chip.active{
+    border-color:var(--teal);
+    color:var(--teal-dark);
+    background:#E8F1F4;
+  }
+
+  .summary-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .summary-card{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+  }
+  .summary-card .num{font-family:'Archivo Black';font-size:20px;}
+  .summary-card .label{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+  .order-card{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:10px;
+    cursor:pointer;
+  }
+  .order-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .folio{
+    font-family:'Archivo Black';
+    font-size:15px;
+    color:var(--teal-dark);
+  }
+  .cliente-nombre{font-weight:600;font-size:14.5px;margin-top:2px;}
+  .order-meta{font-size:12px;color:var(--muted);margin-top:4px;}
+  .pill{
+    font-size:11px;
+    font-weight:700;
+    padding:4px 10px;
+    border-radius:100px;
+    white-space:nowrap;
+  }
+  .pill.pendiente{background:#FCE4F1;color:var(--magenta);}
+  .pill.proceso{background:#DFF3FC;color:#0287BD;}
+  .pill.terminado{background:#DEF4E8;color:#1E7A46;}
+  .pill.pago-pendiente{background:#FFF2CC;color:#785B00;}
+  .pill.pagado{background:#DEF4E8;color:#1E7A46;}
+  .order-statuses{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  .order-money{
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px dashed var(--line);
+    font-size:13px;
+  }
+  .order-money .saldo-pos{color:var(--danger);font-weight:700;}
+  .order-money .saldo-ok{color:#1E7A46;font-weight:700;}
+  .order-edit-hint{
+    font-size:11px;
+    color:var(--muted);
+    text-align:right;
+    margin-top:6px;
+  }
+
+  .empty{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--muted);
+  }
+  .empty .eye-big{
+    width:52px;height:52px;border-radius:50%;
+    background:conic-gradient(var(--cyan),var(--magenta),var(--yellow),var(--cyan));
+    margin:0 auto 14px;
+    position:relative;
+  }
+  .empty .eye-big::after{content:"";position:absolute;inset:16px;background:var(--paper);border-radius:50%;}
+
+  /* Overlay / drawer */
+  .overlay{
+    position:fixed;inset:0;
+    background:rgba(20,20,20,0.45);
+    z-index:40;
+    display:none;
+  }
+  .overlay.show{display:block;}
+  .drawer{
+    position:fixed;
+    top:0;right:0;bottom:0;
+    width:min(480px,100%);
+    background:var(--paper);
+    z-index:50;
+    transform:translateX(100%);
+    transition:transform .25s ease;
+    overflow-y:auto;
+    box-shadow:-8px 0 24px rgba(0,0,0,0.15);
+  }
+  .drawer.show{transform:translateX(0);}
+  .drawer-head{
+    position:sticky;top:0;
+    background:var(--teal-dark);
+    color:#fff;
+    padding:16px 18px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    z-index:2;
+  }
+  .drawer-head h2{margin:0;font-size:16px;}
+  .drawer-body{padding:18px;}
+
+  label{
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--muted);
+    display:block;
+    margin-bottom:5px;
+    margin-top:14px;
+  }
+  label:first-child{margin-top:0;}
+  input,select,textarea{
+    width:100%;
+    padding:10px 11px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    font-family:inherit;
+    font-size:14px;
+    background:#fff;
+    color:var(--ink);
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+  .section-title{
+    font-family:'Archivo Black';
+    font-size:13px;
+    letter-spacing:0.2px;
+    margin-top:22px;
+    margin-bottom:8px;
+    color:var(--teal-dark);
+  }
+
+  .prod-row{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px;
+    margin-bottom:8px;
+  }
+  .prod-row .row2{grid-template-columns:1fr 1fr 1fr;}
+  .prod-row .desc-line{margin-bottom:8px;}
+  .prod-remove{
+    background:none;border:none;color:var(--danger);
+    font-size:12px;font-weight:600;cursor:pointer;
+    margin-top:6px;padding:0;
+  }
+  .add-prod{
+    width:100%;
+    border:1.5px dashed var(--line);
+    background:transparent;
+    color:var(--teal-dark);
+    padding:10px;
+    border-radius:8px;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+
+  .totales{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    margin-top:10px;
+  }
+  .totales .linea{
+    display:flex;justify-content:space-between;
+    font-size:13.5px;margin-bottom:6px;
+  }
+  .totales .linea.total{
+    font-family:'Archivo Black';
+    font-size:16px;
+    border-top:1px dashed var(--line);
+    padding-top:8px;margin-top:4px;
+  }
+  .checkbox-line{
+    display:flex;align-items:center;gap:8px;
+    margin-top:14px;font-size:13.5px;font-weight:500;color:var(--ink);
+  }
+  .checkbox-line input{width:auto;}
+
+  .drawer-actions{
+    display:flex;gap:8px;
+    margin-top:20px;
+    flex-wrap:wrap;
+  }
+  .drawer-actions .btn{flex:1;justify-content:center;}
+
+  .status-actions{
+    display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;
+  }
+  .status-actions .chip{flex:1;text-align:center;}
+
+  /* Hidden printable note */
+  #nota-render{
+    position:fixed;
+    left:-9999px;top:0;
+    width:600px;
+    background:#fff;
+    font-family:'Inter',sans-serif;
+    color:#1A1A1A;
+    padding:0;
+  }
+  .nota-inner{padding:28px;}
+  .nota-head{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    border-bottom:3px solid #1A1A1A;
+    padding-bottom:14px;margin-bottom:16px;
+  }
+  .nota-brand{font-family:'Archivo Black';font-size:22px;}
+  .nota-brand .sub{font-family:'Inter';font-size:10.5px;font-weight:600;color:#78736A;letter-spacing:0.5px;}
+  .nota-folio-box{
+    text-align:right;
+  }
+  .nota-folio-box .f{font-family:'Archivo Black';font-size:18px;color:#E6007E;}
+  .nota-folio-box .d{font-size:11px;color:#78736A;}
+  .nota-cliente{font-size:12.5px;line-height:1.7;margin-bottom:16px;}
+  .nota-cliente b{display:inline-block;width:88px;color:#78736A;font-weight:600;}
+  table.nota-tabla{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;}
+  table.nota-tabla th{
+    text-align:left;background:#1A1A1A;color:#fff;padding:7px 8px;font-size:10.5px;
+  }
+  table.nota-tabla td{padding:7px 8px;border-bottom:1px solid #E3DFD3;}
+  table.nota-tabla td.num,table.nota-tabla th.num{text-align:right;}
+  .nota-totales{margin-left:auto;width:230px;font-size:12.5px;}
+  .nota-totales .l{display:flex;justify-content:space-between;padding:3px 0;}
+  .nota-totales .l.total{font-family:'Archivo Black';font-size:15px;border-top:2px solid #1A1A1A;margin-top:4px;padding-top:6px;}
+  .nota-totales .l.saldo{color:#E6007E;font-weight:700;}
+  .nota-foot{
+    margin-top:18px;padding-top:12px;border-top:1px dashed #E3DFD3;
+    font-size:11px;color:#78736A;display:flex;justify-content:space-between;
+  }
+
+  /* Portal de acceso */
+  .portal{
+    min-height:100vh;
+    background:var(--teal-dark);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  .portal-box{width:100%;max-width:340px;}
+  .portal-btn{width:100%;justify-content:center;margin-bottom:10px;padding:13px;}
+  .portal-note{
+    color:#8CA9B3;font-size:11px;text-align:center;
+    margin-top:16px;line-height:1.5;
+  }
+
+  /* Consulta pública */
+  .consulta{
+    min-height:100vh;
+    background:var(--paper);
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:40px 20px;
+  }
+  .consulta-box{
+    width:100%;max-width:380px;
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px;
+  }
+  .estado-cliente{
+    margin-top:18px;
+    padding:16px;
+    border-radius:10px;
+    background:#F3F7F8;
+    border:1px solid var(--line);
+  }
+  .estado-cliente .pill{font-size:12.5px;padding:6px 14px;}
+  .estado-cliente .fila{
+    display:flex;justify-content:space-between;
+    font-size:13px;margin-top:10px;
+  }
+  .barra-pasos{
+    display:flex;gap:4px;margin-top:14px;
+  }
+  .barra-pasos .paso{
+    flex:1;height:6px;border-radius:100px;background:var(--line);
+  }
+  .barra-pasos .paso.on{background:var(--teal);}
+
+  /* Modal propio (reemplaza prompt/alert/confirm nativos, bloqueados en el sandbox) */
+  .modal-box{
+    position:fixed;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    background:var(--paper-2);
+    border-radius:12px;
+    padding:20px;
+    width:min(340px,90%);
+    z-index:90;
+    display:none;
+    box-shadow:0 12px 32px rgba(0,0,0,0.25);
+  }
+  .modal-box.show{display:block;}
+  .modal-msg{font-size:14px;line-height:1.5;color:var(--ink);}
+  .modal-actions{display:flex;gap:8px;margin-top:16px;}
+  .modal-actions .btn{flex:1;justify-content:center;}
+  #modalOverlay.show{display:block;z-index:85;}
+</style>
+</head>
+<body>
+
+<!-- PORTAL DE ACCESO -->
+<div id="portal" class="portal">
+  <div class="portal-box">
+    <div class="eye" style="width:44px;height:44px;margin:0 auto 14px;"></div>
+    <h1 class="display" style="text-align:center;font-size:20px;color:#fff;margin:0 0 4px;">YA VISTE</h1>
+    <div style="text-align:center;color:#B7CBD3;font-size:12px;margin-bottom:22px;">¿Cómo quieres entrar?</div>
+    <button class="btn btn-primary portal-btn" id="btnRolAdmin">Soy administrador</button>
+    <button class="btn btn-teal portal-btn" id="btnRolEmpleado">Soy empleado</button>
+    <div class="portal-note">El acceso de administrador y empleado se valida con cuentas de Supabase.</div>
+    <div style="text-align:center;margin-top:14px;"><a href="index.html" style="color:#8CA9B3;font-size:12px;">← Volver al sitio</a></div>
+  </div>
+</div>
+
+<!-- CONSULTA PÚBLICA DEL CLIENTE -->
+<div id="consulta" class="consulta" style="display:none;">
+  <div class="consulta-box">
+    <button class="btn btn-ghost" id="btnVolverPortal" style="color:var(--teal-dark);padding:0;margin-bottom:14px;">← Volver</button>
+    <h2 class="display" style="font-size:17px;margin:0 0 4px;">Consultar mi pedido</h2>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;">Ingresa el WhatsApp con el que hiciste tu pedido para ver el estatus.</div>
+    <label>WhatsApp con el que hiciste tu pedido</label>
+    <input id="c_tel" placeholder="246 000 0000">
+    <button class="btn btn-primary" id="btnConsultar" style="width:100%;margin-top:16px;">Consultar estatus</button>
+    <div id="consultaResultado"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD (admin / empleado) -->
+<div id="appRoot" style="display:none;">
+<header class="app">
+  <div class="brand">
+    <div class="eye"></div>
+    <div>
+      <h1 class="display">YA VISTE</h1>
+      <div class="sub" id="rolTag">Pedidos · Chiautempan, Tlaxcala</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn btn-primary" id="btnNuevo">+ Nuevo pedido</button>
+    <button class="btn btn-secondary" id="btnExportar">Exportar a Excel</button>
+    <button class="btn btn-ghost" id="btnSalir" style="color:#fff;">Salir</button>
+    <a href="index.html" class="btn btn-ghost" style="color:#fff;">← Sitio</a>
+  </div>
+</header>
+
+<main>
+  <div class="summary-row" id="resumen"></div>
+
+  <div class="toolbar">
+    <div class="filters" id="filtros">
+      <button class="chip active" data-f="todos">Todos</button>
+      <button class="chip" data-f="pendiente">Pendiente</button>
+      <button class="chip" data-f="proceso">En proceso</button>
+      <button class="chip" data-f="terminado">Terminado</button>
+      <button class="chip" data-f="debe">Con saldo</button>
+    </div>
+  </div>
+
+  <div id="lista"></div>
+</main>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h2 id="drawerTitulo">Nuevo pedido</h2>
+    <button class="btn btn-ghost" style="color:#fff" id="btnCerrar">Cerrar ✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<div id="nota-render"></div>
+
+<div class="overlay" id="modalOverlay" style="z-index:80;"></div>
+<div id="modalBox" class="modal-box">
+  <div id="modalMsg" class="modal-msg"></div>
+  <input id="modalInput" type="text" style="display:none;margin-top:10px;">
+  <div class="modal-actions">
+    <button class="btn btn-secondary" id="modalCancel">Cancelar</button>
+    <button class="btn btn-primary" id="modalOk">Aceptar</button>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script>
+window.addEventListener('error', function(e){
+  console.error('Error capturado:', e.error || e.message);
+  avisar('Ocurrió un problema y no se pudo completar la acción. Detalle: ' + (e.message||'error desconocido') + '\n\nIntenta de nuevo; si se repite, avísame el mensaje exacto.');
+});
+window.addEventListener('unhandledrejection', function(e){
+  console.error('Promesa sin manejar:', e.reason);
+  const detalle = (e.reason && e.reason.message) ? e.reason.message : e.reason;
+  avisar('Ocurrió un problema al guardar/procesar. Detalle: ' + detalle + '\n\nIntenta de nuevo; si se repite, avísame el mensaje exacto.');
+});
+
+let state = { nextFolio: 1, orders: [] };
+let currentFilter = 'todos';
+let editingId = null;
+let currentRole = null; // 'admin' | 'empleado'
+const SUPABASE_CONFIG = window.YAVISTE_SUPABASE_CONFIG || {};
+const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
+  && !SUPABASE_CONFIG.url.includes('YOUR_PROJECT_REF')
+  && !SUPABASE_CONFIG.anonKey.includes('YOUR_SUPABASE_')
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  : null;
+const LEGACY_STORAGE_KEY = 'yaviste-orders-v1';
+
+// ---------- Modal propio (prompt/alert/confirm nativos no funcionan en este sandbox) ----------
+function abrirModal({mensaje, conInput=false, tipoInput='text', soloOk=false}){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    const input = document.getElementById('modalInput');
+    document.getElementById('modalMsg').textContent = mensaje;
+    input.style.display = conInput ? 'block' : 'none';
+    input.type = tipoInput;
+    input.value = '';
+    document.getElementById('modalCancel').style.display = soloOk ? 'none' : 'inline-flex';
+
+    overlay.classList.add('show');
+    box.classList.add('show');
+    if(conInput) setTimeout(()=>input.focus(), 50);
+
+    function cerrar(resultado){
+      overlay.classList.remove('show');
+      box.classList.remove('show');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+      resolve(resultado);
+    }
+    const okBtn = document.getElementById('modalOk');
+    const cancelBtn = document.getElementById('modalCancel');
+    function onOk(){ cerrar({ok:true, valor:input.value}); }
+    function onCancel(){ cerrar({ok:false, valor:null}); }
+    function onKey(e){ if(e.key==='Enter') onOk(); }
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+  });
+}
+function avisar(mensaje){ return abrirModal({mensaje, soloOk:true}); }
+function confirmar(mensaje){ return abrirModal({mensaje}).then(r=>r.ok); }
+function pedirTexto(mensaje, tipoInput='text'){ return abrirModal({mensaje, conInput:true, tipoInput}).then(r=> r.ok ? r.valor : null); }
+
+async function iniciarSesionPersonal(rolSolicitado){
+  if(!supabaseClient){
+    await avisar('Falta configurar la URL y la clave pública de Supabase en supabase-config.js.');
+    return;
+  }
+  const email = await pedirTexto('Correo de acceso:', 'email');
+  if(email===null) return;
+  const password = await pedirTexto('Contraseña:', 'password');
+  if(password===null) return;
+
+  try{
+    const {data, error} = await supabaseClient.auth.signInWithPassword({email:email.trim(), password});
+    if(error) throw error;
+    const {data:staff, error:roleError} = await supabaseClient
+      .from('staff_roles').select('role').eq('user_id', data.user.id).maybeSingle();
+    if(roleError) throw roleError;
+    if(!staff || staff.role !== rolSolicitado){
+      await supabaseClient.auth.signOut();
+      await avisar('Esta cuenta no tiene asignado el perfil seleccionado.');
+      return;
+    }
+    await entrarDashboard(staff.role);
+  }catch(error){
+    await avisar('No se pudo iniciar sesión. ' + (error.message || 'Verifica tus datos y la configuración de Supabase.'));
+  }
+}
+document.getElementById('btnRolAdmin').addEventListener('click', ()=>iniciarSesionPersonal('admin'));
+document.getElementById('btnRolEmpleado').addEventListener('click', ()=>iniciarSesionPersonal('empleado'));
+function mostrarConsultaCliente(){
+  document.getElementById('portal').style.display='none';
+  document.getElementById('consulta').style.display='flex';
+}
+if(new URLSearchParams(window.location.search).get('consulta') === '1') mostrarConsultaCliente();
+document.getElementById('btnVolverPortal').addEventListener('click', ()=>{
+  document.getElementById('consulta').style.display='none';
+  document.getElementById('portal').style.display='flex';
+  document.getElementById('consultaResultado').innerHTML='';
+});
+document.getElementById('btnSalir').addEventListener('click', async ()=>{
+  currentRole=null;
+  document.getElementById('appRoot').style.display='none';
+  document.getElementById('portal').style.display='flex';
+  await supabaseClient.auth.signOut();
+});
+
+async function entrarDashboard(rol){
+  currentRole = rol;
+  document.getElementById('portal').style.display='none';
+  document.getElementById('appRoot').style.display='block';
+  document.getElementById('rolTag').textContent = rol==='admin' ? 'Panel administrador' : 'Panel empleado';
+  document.getElementById('btnNuevo').style.display = 'inline-flex';
+  document.getElementById('btnExportar').style.display = rol==='admin' ? 'inline-flex' : 'none';
+  try{
+    await loadState();
+  }catch(error){
+    currentRole = null;
+    document.getElementById('appRoot').style.display='none';
+    document.getElementById('portal').style.display='flex';
+    await supabaseClient.auth.signOut();
+    await avisar('No se pudieron cargar los pedidos de Supabase. ' + (error.message || ''));
+  }
+}
+
+function renderTarjetaEstado(pedido){
+  const total = Number(pedido.total)||0;
+  const anticipo = Number(pedido.anticipo)||0;
+  const saldo = total-anticipo;
+  const pasos = ['pendiente','proceso','terminado'];
+  const idx = pasos.indexOf(pedido.estatus);
+  const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado — listo para recoger'}[pedido.estatus];
+  return `
+    <div class="estado-cliente">
+      <div class="folio">Pedido #${String(pedido.folio).padStart(4,'0')}</div>
+      <span class="pill ${pedido.estatus}">${estatusLabel}</span>
+      <div class="barra-pasos">
+        <div class="paso ${idx>=0?'on':''}"></div>
+        <div class="paso ${idx>=1?'on':''}"></div>
+        <div class="paso ${idx>=2?'on':''}"></div>
+      </div>
+      <div class="fila"><span>Fecha de entrega</span><b>${pedido.fecha_entrega||'Por confirmar'}</b></div>
+      <div class="fila"><span>Total</span><b>$${fmt(total)}</b></div>
+      <div class="fila"><span>Anticipo</span><b>$${fmt(anticipo)}</b></div>
+      <div class="fila"><span>Estatus de pago</span><b>${pedido.estatus_pago==='pagado'?'Pagado':'Pendiente'}</b></div>
+      <div class="fila"><span>${saldo>0.009?'Saldo pendiente':'Estatus de saldo'}</span><b>${saldo>0.009?'$'+fmt(saldo):'Liquidado'}</b></div>
+    </div>
+  `;
+}
+
+function telefonoE164(valor){
+  const digitos = valor.replace(/\D/g,'');
+  if(digitos.length===10) return '+52'+digitos;
+  if(digitos.length===12 && digitos.startsWith('52')) return '+'+digitos;
+  if(digitos.length===13 && digitos.startsWith('521')) return '+52'+digitos.slice(3);
+  if(valor.trim().startsWith('+') && digitos.length>=11) return '+'+digitos;
+  throw new Error('Escribe un número de WhatsApp válido con lada.');
+}
+
+async function buscarPedidoPublico(){
+  const telefono = document.getElementById('c_tel').value.trim();
+  const cont = document.getElementById('consultaResultado');
+
+  if(!telefono){
+    cont.innerHTML = `<div class="estado-cliente">Escribe el WhatsApp con el que hiciste tu pedido.</div>`;
+    return;
+  }
+
+  try{
+    if(!supabaseClient) throw new Error('La consulta de pedidos todavía no está configurada.');
+    const phone = telefonoE164(telefono);
+    const {data, error} = await supabaseClient.rpc('consultar_pedidos_por_telefono', {
+      telefono_buscado:phone
+    });
+    if(error) throw error;
+    const pedidos = data || [];
+
+    if(pedidos.length===0){
+      cont.innerHTML = `<div class="estado-cliente">No encontramos ningún pedido con ese WhatsApp.</div>`;
+      return;
+    }
+
+    cont.innerHTML = pedidos.map(renderTarjetaEstado).join('');
+  }catch(e){
+    cont.innerHTML = '';
+    await avisar('No se pudo consultar el pedido. ' + (e.message || 'Intenta de nuevo.'));
+  }
+}
+document.getElementById('btnConsultar').addEventListener('click', buscarPedidoPublico);
+
+function fmt(n){
+  n = Number(n)||0;
+  return n.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+async function loadState(){
+  if(!supabaseClient) throw new Error('Configura la URL y la clave pública de Supabase en supabase-config.js.');
+  let {data, error} = await supabaseClient.from('pedidos')
+    .select('id, folio, creado, estatus, estatus_pago, datos').order('folio', {ascending:false});
+  if(error) throw error;
+
+  if(currentRole==='admin'){
+    let legacyOrders = [];
+    try{
+      const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      const storedOrders = raw ? (JSON.parse(raw).orders || []) : [];
+      const remoteIds = new Set((data || []).map(order=>String(order.id)));
+      legacyOrders = storedOrders.filter(order=>!remoteIds.has(String(order.id)));
+    }catch(e){
+      console.warn('No se pudieron leer los pedidos guardados anteriormente.', e);
+    }
+    if(legacyOrders.length && await confirmar(`Se encontraron ${legacyOrders.length} pedidos guardados en este navegador. ¿Importarlos a Supabase?`)){
+      const rows = legacyOrders.map((legacyOrder, index)=>{
+        const order = {...legacyOrder, cliente:{...(legacyOrder.cliente || {})}};
+        order.id = String(order.id || `legacy-${Date.now()}-${index}`);
+        order.creado = order.creado || new Date().toISOString();
+        order.estatus = ['pendiente','proceso','terminado'].includes(order.estatus) ? order.estatus : 'pendiente';
+        order.folio = Number.isInteger(Number(order.folio)) && Number(order.folio)>0 ? Number(order.folio) : undefined;
+        normalizarPedido(order);
+        return filaDesdePedido(order, order.folio!==undefined);
+      });
+      const {error:importError} = await supabaseClient.from('pedidos').insert(rows);
+      if(importError) throw importError;
+      const {error:sequenceError} = await supabaseClient.rpc('sincronizar_folio_pedidos');
+      if(sequenceError) throw sequenceError;
+      const refreshed = await supabaseClient.from('pedidos')
+        .select('id, folio, creado, estatus, estatus_pago, datos').order('folio', {ascending:false});
+      if(refreshed.error) throw refreshed.error;
+      data = refreshed.data;
+    }
+  }
+
+  state.orders = (data || []).map(pedidoDesdeFila);
+  state.nextFolio = state.orders.reduce((max, order)=>Math.max(max, Number(order.folio)||0), 0) + 1;
+  render();
+}
+
+function pedidoDesdeFila(row){
+  return {...row.datos, id:row.id, folio:Number(row.folio), creado:row.creado, estatus:row.estatus,
+    estatusPago:row.estatus_pago || 'pendiente'};
+}
+
+function filaDesdePedido(order, incluirFolio=false){
+  const {id, folio, creado, estatus, estatusPago, ...datos} = order;
+  const row = {id, creado, estatus, estatus_pago:estatusPago || 'pendiente', datos};
+  if(incluirFolio) row.folio = folio;
+  return row;
+}
+
+async function guardarPedidoEnSupabase(order, esNuevo){
+  let resultado;
+  if(currentRole==='empleado' && !esNuevo){
+    const {data, error} = await supabaseClient.rpc('actualizar_estatus_pedido', {
+      p_pedido_id:order.id,
+      p_nuevo_estatus:order.estatus,
+      p_nuevo_estatus_pago:order.estatusPago
+    });
+    if(error) throw error;
+    return pedidoDesdeFila(data);
+  }
+  if(esNuevo){
+    resultado = await supabaseClient.from('pedidos').insert(filaDesdePedido(order))
+      .select('id, folio, creado, estatus, estatus_pago, datos').single();
+  }else{
+    resultado = await supabaseClient.from('pedidos').update(filaDesdePedido(order))
+      .eq('id', order.id).select('id, folio, creado, estatus, estatus_pago, datos').single();
+  }
+  if(resultado.error) throw resultado.error;
+  return pedidoDesdeFila(resultado.data);
+}
+
+function calcTotales(order){
+  const subtotal = order.productos.reduce((a,p)=>a + (Number(p.cantidad)||0)*(Number(p.precio)||0), 0);
+  const iva = order.ivaAplica ? subtotal*0.16 : 0;
+  const total = subtotal + iva;
+  const saldo = total - (Number(order.anticipo)||0);
+  return {subtotal, iva, total, saldo};
+}
+
+function render(){
+  renderResumen();
+  renderLista();
+}
+
+function renderResumen(){
+  const pendientes = state.orders.filter(o=>o.estatus!=='terminado').length;
+  let porCobrar = 0;
+  state.orders.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
+  const hoy = new Date().toISOString().slice(0,10);
+  const entregasHoy = state.orders.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado').length;
+
+  document.getElementById('resumen').innerHTML = `
+    <div class="summary-card"><div class="num">${pendientes}</div><div class="label">Pedidos activos</div></div>
+    <div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>
+    <div class="summary-card"><div class="num">${entregasHoy}</div><div class="label">Entregas hoy</div></div>
+  `;
+}
+
+function pasaFiltro(o){
+  if(currentFilter==='todos') return true;
+  if(currentFilter==='debe') return calcTotales(o).saldo > 0.009;
+  return o.estatus === currentFilter;
+}
+
+function renderLista(){
+  const cont = document.getElementById('lista');
+  const items = [...state.orders].sort((a,b)=> b.folio - a.folio).filter(pasaFiltro);
+
+  if(items.length===0){
+    cont.innerHTML = `<div class="empty">
+      <div class="eye-big"></div>
+      <div style="font-weight:600;color:#1A1A1A;margin-bottom:4px;">Sin pedidos que mostrar</div>
+      <div style="font-size:13px;">Crea un pedido nuevo con el botón de arriba.</div>
+    </div>`;
+    return;
+  }
+
+  cont.innerHTML = items.map(o=>{
+    const t = calcTotales(o);
+    const saldoClass = t.saldo > 0.009 ? 'saldo-pos' : 'saldo-ok';
+    const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
+    return `
+      <div class="order-card" onclick="abrirPedido('${o.id}')">
+        <div class="order-top">
+          <div>
+            <div class="folio">#${String(o.folio).padStart(4,'0')}</div>
+            <div class="cliente-nombre">${escapeHtml(o.cliente.nombre||'Sin nombre')}</div>
+            <div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}</div>
+          </div>
+          <div class="order-statuses">
+            <span class="pill ${o.estatus}">${estatusLabel}</span>
+            <span class="pill ${o.estatusPago==='pagado'?'pagado':'pago-pendiente'}">Pago: ${o.estatusPago==='pagado'?'Pagado':'Pendiente'}</span>
+          </div>
+        </div>
+        <div class="order-money">
+          <span>Total: <b>$${fmt(t.total)}</b></span>
+          <span class="${saldoClass}">${t.saldo>0.009 ? 'Debe $'+fmt(t.saldo) : 'Liquidado'}</span>
+        </div>
+        <div class="order-edit-hint">Toca para editar →</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+document.getElementById('filtros').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  document.querySelectorAll('#filtros .chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.f;
+  renderLista();
+});
+
+// ---------- Drawer / formulario ----------
+
+function nuevoPedidoVacio(){
+  return {
+    id: 'o'+Date.now(),
+    folio: state.nextFolio,
+    creado: new Date().toISOString(),
+    cliente: {nombre:'', whatsapp:'', correo:''},
+    fechaEntrega:'',
+    productos:[{desc:'', cantidad:1, precio:0}],
+    ivaAplica:false,
+    anticipo:0,
+    estatus:'pendiente',
+    estatusPago:'pendiente',
+    notas:'',
+    metodoPago:'',
+    domicilioEntrega:'',
+    facturacion:{
+      razonSocial:'', rfc:'', regimenFiscal:'', nombreComercial:'',
+      calle:'', numero:'', colonia:'', codigoPostal:'', municipio:'', estado:''
+    }
+  };
+}
+
+let draftOrder = null;
+
+function abrirNuevo(){
+  if(currentRole!=='admin' && currentRole!=='empleado') return;
+  editingId = null;
+  draftOrder = nuevoPedidoVacio();
+  document.getElementById('drawerTitulo').textContent = 'Nuevo pedido — #'+String(draftOrder.folio).padStart(4,'0');
+  renderForm();
+  openDrawer();
+}
+
+function normalizarPedido(o){
+  if(!o.facturacion) o.facturacion = {razonSocial:'', rfc:'', regimenFiscal:'', nombreComercial:'', calle:'', numero:'', colonia:'', codigoPostal:'', municipio:'', estado:''};
+  if(!o.estatusPago) o.estatusPago = 'pendiente';
+  if(o.metodoPago===undefined) o.metodoPago = '';
+  if(o.domicilioEntrega===undefined) o.domicilioEntrega = '';
+  if(o.cliente.whatsapp===undefined) o.cliente.whatsapp = o.cliente.telefono || '';
+  delete o.cliente.telefono;
+  return o;
+}
+
+function abrirPedido(id){
+  editingId = id;
+  const o = state.orders.find(x=>x.id===id);
+  draftOrder = normalizarPedido(JSON.parse(JSON.stringify(o)));
+  document.getElementById('drawerTitulo').textContent = 'Editar pedido — #'+String(o.folio).padStart(4,'0');
+  renderForm();
+  openDrawer();
+}
+
+function openDrawer(){
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('drawer').classList.add('show');
+}
+function closeDrawer(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('drawer').classList.remove('show');
+}
+document.getElementById('btnCerrar').addEventListener('click', closeDrawer);
+document.getElementById('overlay').addEventListener('click', closeDrawer);
+document.getElementById('btnNuevo').addEventListener('click', abrirNuevo);
+
+function renderForm(){
+  const o = draftOrder;
+  const t = calcTotales(o);
+  const body = document.getElementById('drawerBody');
+  const soloLectura = currentRole==='empleado' && Boolean(editingId);
+  const roAttr = soloLectura ? 'disabled' : '';
+
+  const f = o.facturacion;
+
+  body.innerHTML = `
+    <div class="section-title">Cliente</div>
+    <label>Nombre</label>
+    <input id="f_nombre" value="${escapeHtml(o.cliente.nombre)}" placeholder="Nombre del cliente" ${roAttr}>
+    <label>WhatsApp</label>
+    <input id="f_wa" value="${escapeHtml(o.cliente.whatsapp)}" placeholder="246 000 0000" ${roAttr}>
+    <label>Correo (opcional)</label>
+    <input id="f_correo" value="${escapeHtml(o.cliente.correo)}" placeholder="correo@ejemplo.com" ${roAttr}>
+    <label>Fecha de entrega</label>
+    <input id="f_fecha" type="date" value="${o.fechaEntrega}" ${roAttr}>
+    <label>Domicilio de entrega (opcional)</label>
+    <textarea id="f_domicilioEntrega" rows="2" placeholder="Dirección donde se entregará el pedido" ${roAttr}>${escapeHtml(o.domicilioEntrega)}</textarea>
+
+    <div class="section-title">Productos</div>
+    <div id="prodsCont"></div>
+    <button class="add-prod" id="btnAddProd" ${roAttr}>+ Agregar producto</button>
+
+    <div class="section-title">Cobro</div>
+    <div class="checkbox-line">
+      <input type="checkbox" id="f_iva" ${o.ivaAplica?'checked':''} ${roAttr}>
+      <label style="margin:0;">Aplicar IVA (16%)</label>
+    </div>
+    <label>Método de pago (opcional)</label>
+    <select id="f_metodoPago" ${roAttr}>
+      <option value="">Sin especificar</option>
+      <option value="Efectivo" ${o.metodoPago==='Efectivo'?'selected':''}>Efectivo</option>
+      <option value="Transferencia" ${o.metodoPago==='Transferencia'?'selected':''}>Transferencia</option>
+      <option value="Tarjeta" ${o.metodoPago==='Tarjeta'?'selected':''}>Tarjeta</option>
+      <option value="Depósito" ${o.metodoPago==='Depósito'?'selected':''}>Depósito</option>
+      <option value="Otro" ${o.metodoPago==='Otro'?'selected':''}>Otro</option>
+    </select>
+    <label>Anticipo recibido</label>
+    <input id="f_anticipo" type="number" step="0.01" value="${o.anticipo}" ${roAttr}>
+
+    <div class="totales" id="totalesBox"></div>
+
+    <div class="section-title">Estatus del pedido</div>
+    <div class="status-actions" id="statusActions"></div>
+
+    <div class="section-title">Estatus del pago</div>
+    <div class="status-actions" id="paymentStatusActions"></div>
+
+    <div class="section-title">Datos de facturación (opcional)</div>
+    <label>Razón social</label>
+    <input id="fc_razonSocial" value="${escapeHtml(f.razonSocial)}" placeholder="Razón social" ${roAttr}>
+    <div class="row2">
+      <div><label>RFC</label><input id="fc_rfc" value="${escapeHtml(f.rfc)}" placeholder="RFC" ${roAttr}></div>
+      <div><label>Nombre comercial</label><input id="fc_nombreComercial" value="${escapeHtml(f.nombreComercial)}" placeholder="Nombre comercial" ${roAttr}></div>
+    </div>
+    <label>Régimen fiscal</label>
+    <input id="fc_regimenFiscal" value="${escapeHtml(f.regimenFiscal)}" placeholder="Ej. Régimen simplificado" ${roAttr}>
+    <label>Calle</label>
+    <input id="fc_calle" value="${escapeHtml(f.calle)}" placeholder="Calle" ${roAttr}>
+    <div class="row2">
+      <div><label>Número</label><input id="fc_numero" value="${escapeHtml(f.numero)}" placeholder="Número" ${roAttr}></div>
+      <div><label>Colonia</label><input id="fc_colonia" value="${escapeHtml(f.colonia)}" placeholder="Colonia" ${roAttr}></div>
+    </div>
+    <div class="row2">
+      <div><label>Código postal</label><input id="fc_codigoPostal" value="${escapeHtml(f.codigoPostal)}" placeholder="C.P." ${roAttr}></div>
+      <div><label>Municipio</label><input id="fc_municipio" value="${escapeHtml(f.municipio)}" placeholder="Municipio" ${roAttr}></div>
+    </div>
+    <label>Estado</label>
+    <input id="fc_estado" value="${escapeHtml(f.estado)}" placeholder="Estado" ${roAttr}>
+
+    <label>Notas internas (opcional)</label>
+    <textarea id="f_notas" rows="2" placeholder="Detalles, colores, medidas..." ${roAttr}>${escapeHtml(o.notas)}</textarea>
+
+    <div class="drawer-actions">
+      <button class="btn btn-primary" id="btnGuardar">${editingId?'Guardar cambios':(currentRole==='empleado'?'Crear pedido':'Guardar pedido')}</button>
+    </div>
+    <div class="drawer-actions">
+      <button class="btn btn-teal" id="btnJPG">Descargar nota (JPG)</button>
+      <button class="btn btn-secondary" id="btnPDF">Descargar nota (PDF)</button>
+    </div>
+    <div class="drawer-actions">
+      <button class="btn btn-wa" id="btnWA">Abrir WhatsApp del cliente</button>
+    </div>
+    ${editingId && currentRole==='admin' ? `<div class="drawer-actions"><button class="btn btn-secondary" id="btnEliminar" style="color:#C0392B;">Eliminar pedido</button></div>` : ''}
+    ${currentRole==='empleado' ? `<div style="font-size:11.5px;color:var(--muted);margin-top:10px;">Puedes crear pedidos y actualizar sus estatus. Al marcar un pago como pagado, solo el administrador podrá cambiarlo.</div>` : ''}
+  `;
+
+  renderProductos();
+  renderTotales();
+  renderStatusActions();
+  renderPaymentStatusActions();
+
+  document.getElementById('btnAddProd').addEventListener('click', ()=>{
+    draftOrder.productos.push({desc:'',cantidad:1,precio:0});
+    renderProductos(); renderTotales();
+  });
+  document.getElementById('btnGuardar').addEventListener('click', guardarDesdeForm);
+  document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
+  document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
+  document.getElementById('btnWA').addEventListener('click', abrirWhatsapp);
+  document.getElementById('f_iva').addEventListener('change', e=>{draftOrder.ivaAplica=e.target.checked; renderTotales();});
+  document.getElementById('f_anticipo').addEventListener('input', e=>{draftOrder.anticipo=e.target.value; renderTotales();});
+
+  const btnEl = document.getElementById('btnEliminar');
+  if(btnEl){
+    btnEl.addEventListener('click', async ()=>{
+      const ok = await confirmar('¿Eliminar este pedido? No se puede deshacer.');
+      if(ok){
+        try{
+          const {error} = await supabaseClient.from('pedidos').delete().eq('id', editingId);
+          if(error) throw error;
+          state.orders = state.orders.filter(x=>x.id!==editingId);
+          render(); closeDrawer();
+          toast('Pedido eliminado');
+        }catch(e){
+          await avisar('No se pudo eliminar el pedido. Detalle: ' + (e && e.message ? e.message : e));
+        }
+      }
+    });
+  }
+}
+
+function renderProductos(){
+  const cont = document.getElementById('prodsCont');
+  const roAttr = (currentRole==='empleado' && editingId) ? 'disabled' : '';
+  cont.innerHTML = draftOrder.productos.map((p,i)=>`
+    <div class="prod-row" data-i="${i}">
+      <div class="desc-line">
+        <label style="margin-top:0;">Descripción</label>
+        <input class="p-desc" value="${escapeHtml(p.desc)}" placeholder="Ej. Lona 2x1m full color" ${roAttr}>
+      </div>
+      <div class="row2">
+        <div><label>Cantidad</label><input class="p-cant" type="number" min="0" step="1" value="${p.cantidad}" ${roAttr}></div>
+        <div><label>Precio unitario</label><input class="p-precio" type="number" min="0" step="0.01" value="${p.precio}" ${roAttr}></div>
+        <div><label>Subtotal</label><input class="p-sub" value="$${fmt((Number(p.cantidad)||0)*(Number(p.precio)||0))}" disabled></div>
+      </div>
+      ${draftOrder.productos.length>1 && !roAttr ? `<button class="prod-remove">Quitar producto</button>` : ''}
+    </div>
+  `).join('');
+
+  cont.querySelectorAll('.prod-row').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelector('.p-desc').addEventListener('input', e=>{draftOrder.productos[i].desc=e.target.value;});
+    row.querySelector('.p-cant').addEventListener('input', e=>{
+      draftOrder.productos[i].cantidad=e.target.value;
+      actualizarSubtotalFila(i);
+      renderTotales();
+    });
+    row.querySelector('.p-precio').addEventListener('input', e=>{
+      draftOrder.productos[i].precio=e.target.value;
+      actualizarSubtotalFila(i);
+      renderTotales();
+    });
+    const rm = row.querySelector('.prod-remove');
+    if(rm) rm.addEventListener('click', ()=>{draftOrder.productos.splice(i,1); renderProductos(); renderTotales();});
+  });
+}
+
+function actualizarSubtotalFila(i){
+  const row = document.querySelector(`.prod-row[data-i="${i}"]`);
+  if(!row) return;
+  const p = draftOrder.productos[i];
+  const sub = (Number(p.cantidad)||0)*(Number(p.precio)||0);
+  row.querySelector('.p-sub').value = `$${fmt(sub)}`;
+}
+
+function renderTotales(){
+  const t = calcTotales(draftOrder);
+  document.getElementById('totalesBox').innerHTML = `
+    <div class="linea"><span>Subtotal</span><span>$${fmt(t.subtotal)}</span></div>
+    <div class="linea"><span>IVA (16%)</span><span>$${fmt(t.iva)}</span></div>
+    <div class="linea total"><span>Total</span><span>$${fmt(t.total)}</span></div>
+    <div class="linea"><span>Anticipo</span><span>$${fmt(draftOrder.anticipo)}</span></div>
+    <div class="linea" style="font-weight:700;color:${t.saldo>0.009?'#C0392B':'#1E7A46'};">
+      <span>${t.saldo>0.009?'Saldo pendiente':'Liquidado'}</span><span>$${fmt(t.saldo)}</span>
+    </div>
+  `;
+}
+
+function renderStatusActions(){
+  const estados = [
+    {k:'pendiente', l:'Pendiente'},
+    {k:'proceso', l:'En proceso'},
+    {k:'terminado', l:'Terminado'}
+  ];
+  document.getElementById('statusActions').innerHTML = estados.map(e=>`
+    <button class="chip ${draftOrder.estatus===e.k?'active':''}" data-s="${e.k}">${e.l}</button>
+  `).join('');
+  document.querySelectorAll('#statusActions .chip').forEach(b=>{
+    b.addEventListener('click', ()=>{draftOrder.estatus=b.dataset.s; renderStatusActions();});
+  });
+}
+
+function renderPaymentStatusActions(){
+  const bloqueado = currentRole==='empleado' && Boolean(editingId) && draftOrder.estatusPago==='pagado';
+  const estadosPago = [
+    {k:'pendiente', l:'Pendiente'},
+    {k:'pagado', l:'Pagado'}
+  ];
+  document.getElementById('paymentStatusActions').innerHTML = estadosPago.map(e=>`
+    <button class="chip ${draftOrder.estatusPago===e.k?'active':''}" data-payment-status="${e.k}" ${bloqueado?'disabled':''}>${e.l}</button>
+  `).join('');
+  document.querySelectorAll('#paymentStatusActions .chip').forEach(button=>{
+    button.addEventListener('click', ()=>{
+      draftOrder.estatusPago=button.dataset.paymentStatus;
+      renderPaymentStatusActions();
+    });
+  });
+}
+
+function leerFormAlDraft(){
+  draftOrder.cliente.nombre = document.getElementById('f_nombre').value.trim();
+  draftOrder.cliente.whatsapp = document.getElementById('f_wa').value.trim();
+  draftOrder.cliente.correo = document.getElementById('f_correo').value.trim();
+  draftOrder.fechaEntrega = document.getElementById('f_fecha').value;
+  draftOrder.domicilioEntrega = document.getElementById('f_domicilioEntrega').value.trim();
+  draftOrder.metodoPago = document.getElementById('f_metodoPago').value;
+  draftOrder.notas = document.getElementById('f_notas').value.trim();
+
+  if(!draftOrder.facturacion) draftOrder.facturacion = {};
+  draftOrder.facturacion.nombreComercial = document.getElementById('fc_nombreComercial').value.trim();
+  draftOrder.facturacion.razonSocial = document.getElementById('fc_razonSocial').value.trim();
+  draftOrder.facturacion.rfc = document.getElementById('fc_rfc').value.trim();
+  draftOrder.facturacion.regimenFiscal = document.getElementById('fc_regimenFiscal').value.trim();
+  draftOrder.facturacion.calle = document.getElementById('fc_calle').value.trim();
+  draftOrder.facturacion.numero = document.getElementById('fc_numero').value.trim();
+  draftOrder.facturacion.colonia = document.getElementById('fc_colonia').value.trim();
+  draftOrder.facturacion.codigoPostal = document.getElementById('fc_codigoPostal').value.trim();
+  draftOrder.facturacion.municipio = document.getElementById('fc_municipio').value.trim();
+  draftOrder.facturacion.estado = document.getElementById('fc_estado').value.trim();
+}
+
+function toast(msg){
+  let t = document.getElementById('toastMsg');
+  if(!t){
+    t = document.createElement('div');
+    t.id='toastMsg';
+    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A1A1A;color:#fff;padding:11px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:100;opacity:0;transition:opacity .25s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity='1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{ t.style.opacity='0'; }, 2200);
+}
+
+async function guardarDesdeForm(){
+  try{
+    const esEmpleado = currentRole==='empleado';
+    const esNuevo = !editingId;
+    if(!esEmpleado || esNuevo) leerFormAlDraft();
+    if((!esEmpleado || esNuevo) && !draftOrder.cliente.nombre){
+      await avisar('Falta el nombre del cliente.');
+      return;
+    }
+    const pedidoGuardado = await guardarPedidoEnSupabase(draftOrder, esNuevo);
+    const idx = state.orders.findIndex(x=>x.id===pedidoGuardado.id);
+    if(idx===-1) state.orders.push(pedidoGuardado);
+    else state.orders[idx] = pedidoGuardado;
+    editingId = pedidoGuardado.id;
+    state.nextFolio = state.orders.reduce((max, order)=>Math.max(max, Number(order.folio)||0), 0) + 1;
+    render();
+    closeDrawer();
+    toast('Pedido guardado ✓');
+  }catch(e){
+    console.error('Error al guardar pedido:', e);
+    await avisar('No se pudo guardar el pedido. Detalle: ' + (e && e.message ? e.message : e));
+  }
+}
+
+// ---------- Generación de nota (JPG / PDF) ----------
+
+function construirNotaHTML(o){
+  const t = calcTotales(o);
+  const filas = o.productos.map(p=>`
+    <tr>
+      <td>${escapeHtml(p.desc||'-')}</td>
+      <td class="num">${p.cantidad}</td>
+      <td class="num">$${fmt(p.precio)}</td>
+      <td class="num">$${fmt((Number(p.cantidad)||0)*(Number(p.precio)||0))}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="nota-inner">
+      <div class="nota-head">
+        <div>
+          <div class="nota-brand">YA VISTE</div>
+          <div class="sub">MEDIOS IMPRESOS Y AUDIOVISUALES</div>
+        </div>
+        <div class="nota-folio-box">
+          <div class="f">#${String(o.folio).padStart(4,'0')}</div>
+          <div class="d">${new Date(o.creado).toLocaleDateString('es-MX')}</div>
+        </div>
+      </div>
+      <div class="nota-cliente">
+        <div><b>Cliente</b>${escapeHtml(o.cliente.nombre)}</div>
+        <div><b>WhatsApp</b>${escapeHtml(o.cliente.whatsapp||'-')}</div>
+        <div><b>Entrega</b>${o.fechaEntrega||'Por confirmar'}</div>
+      </div>
+      <table class="nota-tabla">
+        <thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">P. Unit.</th><th class="num">Importe</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="nota-totales">
+        <div class="l"><span>Subtotal</span><span>$${fmt(t.subtotal)}</span></div>
+        ${o.ivaAplica? `<div class="l"><span>IVA</span><span>$${fmt(t.iva)}</span></div>`:''}
+        <div class="l total"><span>Total</span><span>$${fmt(t.total)}</span></div>
+        <div class="l"><span>Anticipo</span><span>$${fmt(o.anticipo)}</span></div>
+        <div class="l saldo"><span>${t.saldo>0.009?'Saldo pendiente':'Liquidado'}</span><span>$${fmt(t.saldo)}</span></div>
+      </div>
+      <div class="nota-foot">
+        <span>Chiautempan, Tlaxcala</span>
+        <span>Gracias por su preferencia</span>
+      </div>
+    </div>
+  `;
+}
+
+async function generarNota(tipo){
+  leerFormAlDraft();
+  const cont = document.getElementById('nota-render');
+  cont.innerHTML = construirNotaHTML(draftOrder);
+  cont.style.left = '0px';
+  cont.style.top = '-9999px';
+
+  const canvas = await html2canvas(cont, {scale:2, backgroundColor:'#ffffff'});
+  cont.style.left = '-9999px';
+
+  const folioStr = String(draftOrder.folio).padStart(4,'0');
+  if(tipo==='jpg'){
+    const link = document.createElement('a');
+    link.download = `pedido-${folioStr}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
+  } else {
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const pdf = new jsPDF({unit:'pt', format:[canvas.width/2, canvas.height/2]});
+    pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width/2, canvas.height/2);
+    pdf.save(`pedido-${folioStr}.pdf`);
+  }
+}
+
+function abrirWhatsapp(){
+  leerFormAlDraft();
+  const numero = (draftOrder.cliente.whatsapp || '').replace(/\D/g,'');
+  if(!numero){
+    avisar('Agrega un número de WhatsApp o teléfono del cliente primero.');
+    return;
+  }
+  const t = calcTotales(draftOrder);
+  const folioStr = String(draftOrder.folio).padStart(4,'0');
+  const msg = `Hola ${draftOrder.cliente.nombre||''}, te compartimos tu pedido #${folioStr} de Ya Viste.\\nTotal: $${fmt(t.total)}\\nAnticipo: $${fmt(draftOrder.anticipo)}\\n${t.saldo>0.009 ? 'Saldo pendiente: $'+fmt(t.saldo) : 'Pedido liquidado'}\\nFecha de entrega: ${draftOrder.fechaEntrega||'por confirmar'}\\n\\nEn un momento te enviamos tu nota en imagen o PDF. ¡Gracias por tu preferencia!`;
+  const url = `https://wa.me/52${numero}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+  avisar('Se abrió WhatsApp con el mensaje listo. Descarga la nota (JPG o PDF) y adjúntala manualmente en el chat, ya que WhatsApp no permite adjuntar archivos automáticamente desde un enlace.');
+}
+
+function exportarExcel(){
+  if(state.orders.length===0){
+    avisar('Todavía no hay pedidos guardados para exportar.');
+    return;
+  }
+  const pedidosRows = [];
+  const detalleRows = [];
+  const facturacionRows = [];
+
+  [...state.orders].sort((a,b)=>a.folio-b.folio).forEach(o=>{
+    const t = calcTotales(o);
+    const f = o.facturacion || {};
+    pedidosRows.push({
+      'Folio': String(o.folio).padStart(4,'0'),
+      'Fecha creado': new Date(o.creado).toLocaleDateString('es-MX'),
+      'Cliente': o.cliente.nombre,
+      'WhatsApp': o.cliente.whatsapp,
+      'Correo': o.cliente.correo,
+      'Fecha de entrega': o.fechaEntrega,
+      'Domicilio de entrega': o.domicilioEntrega||'',
+      'Método de pago': o.metodoPago||'',
+      'Estatus': {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado'}[o.estatus],
+      'Subtotal': Number(t.subtotal.toFixed(2)),
+      'IVA': Number(t.iva.toFixed(2)),
+      'Total': Number(t.total.toFixed(2)),
+      'Anticipo': Number((Number(o.anticipo)||0).toFixed(2)),
+      'Saldo pendiente': Number(t.saldo.toFixed(2)),
+      'Notas': o.notas
+    });
+    if(f.razonSocial || f.rfc){
+      facturacionRows.push({
+        'Folio': String(o.folio).padStart(4,'0'),
+        'Cliente': o.cliente.nombre,
+        'Nombre comercial': f.nombreComercial||'',
+        'Razón social': f.razonSocial||'',
+        'RFC': f.rfc||'',
+        'Régimen fiscal': f.regimenFiscal||'',
+        'Calle': f.calle||'',
+        'Número': f.numero||'',
+        'Colonia': f.colonia||'',
+        'Código postal': f.codigoPostal||'',
+        'Municipio': f.municipio||'',
+        'Estado': f.estado||''
+      });
+    }
+    o.productos.forEach(p=>{
+      detalleRows.push({
+        'Folio': String(o.folio).padStart(4,'0'),
+        'Cliente': o.cliente.nombre,
+        'Descripción': p.desc,
+        'Cantidad': Number(p.cantidad)||0,
+        'Precio unitario': Number(p.precio)||0,
+        'Importe': Number(((Number(p.cantidad)||0)*(Number(p.precio)||0)).toFixed(2))
+      });
+    });
+  });
+
+  const wb = XLSX.utils.book_new();
+  const wsPedidos = XLSX.utils.json_to_sheet(pedidosRows);
+  const wsDetalle = XLSX.utils.json_to_sheet(detalleRows);
+  XLSX.utils.book_append_sheet(wb, wsPedidos, 'Pedidos');
+  XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle productos');
+  if(facturacionRows.length>0){
+    const wsFacturacion = XLSX.utils.json_to_sheet(facturacionRows);
+    XLSX.utils.book_append_sheet(wb, wsFacturacion, 'Facturación');
+  }
+
+  const hoy = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `pedidos-ya-viste-${hoy}.xlsx`);
+}
+
+document.getElementById('btnExportar').addEventListener('click', exportarExcel);
+</script>
+</body>
+</html>

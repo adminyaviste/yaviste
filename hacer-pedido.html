@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es">
+   <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Hacer pedido | Ya Viste</title>
+      <link rel="stylesheet" href="css/components.css">
+      <link rel="stylesheet" href="css/icons.css">
+      <link rel="stylesheet" href="css/responsee.css">
+      <link rel="stylesheet" href="owl-carousel/owl.carousel.css">
+      <link rel="stylesheet" href="owl-carousel/owl.theme.css">
+      <link rel="stylesheet" href="css/template-style.css">
+      <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700,800&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.0.0/animate.min.css" rel="stylesheet" type="text/css">
+      <link rel="icon" sizes="192x192" href="imagenes/icon.png">
+      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+   </head>
+   <body class="size-1140">
+      <header>
+         <nav>
+            <div class="line">
+               <div class="logo logo-small image-hover-zoom">
+                  <a href="index.html"><img class="animate__animated animate__backInDown" src="imagenes/ya viste png.png" alt="Ya Viste"></a>
+               </div>
+               <div class="top-nav">
+                  <div class="s-12 l-5">
+                     <ul class="top-ul chevron right">
+                        <li><a href="index.html">Inicio</a></li>
+                        <li><a href="services.html">Servicios</a></li>
+                        <li><a href="gallery.html">Galería</a></li>
+                        <li><a href="Pedidos.html">Pedidos</a></li>
+                        <li class="phone"><a href="Nosotros.html">Nosotros</a></li>
+                        <li class="phone"><a href="contact.html">Contacto</a></li>
+                        <li class="phone"><a href="promociones.html" style="color: red"><b>Promociones</b></a></li>
+                        <li class="phone"><a href="tel:+522461357712" style="color: white" class="icon-smartphone">&nbsp; 246 135 77 12</a></li>
+                     </ul>
+                  </div>
+                  <ul class="l-1 l-1">
+                     <li class="logo"><a href="index.html"><img class="logo animate__animated animate__backInDown" src="imagenes/ya viste png.png" alt="Ya Viste"></a></li>
+                  </ul>
+                  <div class="s-12 l-5 nophone">
+                     <ul class="top-ul chevron">
+                        <li><a href="Nosotros.html">Nosotros</a></li>
+                        <li><a href="contact.html">Contacto</a></li>
+                        <li><a href="promociones.html" style="color: red"><b>Promociones</b></a></li>
+                     </ul>
+                  </div>
+               </div>
+            </div>
+         </nav>
+      </header>
+      <section>
+         <span class="ir-arriba icon-sli-arrow-up"></span>
+         <div id="head">
+            <div class="line">
+               <h1 class="animate__animated animate__backInDown">Hacer pedido</h1>
+            </div>
+         </div>
+         <main id="content" class="pedido-form-page">
+            <div class="line">
+               <section id="admin-login-panel" class="admin-login-panel" aria-labelledby="admin-login-title">
+                  <p class="pedido-kicker">Acceso restringido</p>
+                  <h2 id="admin-login-title">Iniciar sesión</h2>
+                  <form id="admin-login-form" class="admin-login-form">
+                     <label for="admin-email">Correo electrónico</label>
+                     <input id="admin-email" type="email" autocomplete="username" required>
+                     <label for="admin-password">Contraseña</label>
+                     <input id="admin-password" type="password" autocomplete="current-password" required>
+                     <button class="admin-login-button" type="submit">Entrar</button>
+                     <p id="admin-login-status" class="admin-login-status" role="alert" aria-live="polite"></p>
+                  </form>
+               </section>
+               <div id="pedido-form-panel" hidden>
+               <div class="pedido-form-intro">
+                  <p class="pedido-kicker">Nuevo pedido</p>
+                  <button id="admin-logout" class="admin-logout" type="button">Cerrar sesión</button>
+               </div>
+               <form id="pedido-form" class="pedido-form" method="post">
+                  <div class="pedido-sheet" role="table" aria-label="Datos del pedido">
+                     <div class="pedido-sheet-row pedido-sheet-header" role="row">
+                        <div role="columnheader">Campo</div>
+                        <div role="columnheader">Información</div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Folio</div>
+                        <div role="cell"><input id="folio" name="folio" type="text" readonly aria-describedby="folio-ayuda"><small id="folio-ayuda">Generado automáticamente</small></div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Nombre del cliente</div>
+                        <div role="cell"><input id="nombre_cliente" name="nombre_cliente" type="text" autocomplete="name" required></div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Correo electrónico (opcional)</div>
+                        <div role="cell"><input id="correo_cliente" name="correo_cliente" type="email" autocomplete="email"></div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Teléfono</div>
+                        <div role="cell"><input id="telefono_cliente" name="telefono_cliente" type="tel" autocomplete="tel" required></div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Atendido por</div>
+                        <div role="cell"><input id="atendido_por" name="atendido_por" type="text" required></div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Fecha de pedido</div>
+                        <div role="cell"><input id="fecha_pedido" name="fecha_pedido" type="date"></div>
+                     </div>
+                     <div class="pedido-sheet-row" role="row">
+                        <div class="pedido-sheet-label" role="rowheader">Fecha estimada de entrega (opcional)</div>
+                        <div role="cell"><input id="fecha_estimada_entrega" name="fecha_estimada_entrega" type="date"></div>
+                     </div>
+                  </div>
+                  <div class="pedido-items-wrap">
+                     <table class="pedido-items-table">
+                        <caption>Artículos del pedido</caption>
+                        <thead>
+                           <tr>
+                              <th scope="col">Artículo</th>
+                              <th scope="col">Cantidad</th>
+                              <th scope="col">Unidad</th>
+                              <th scope="col">Descripción</th>
+                              <th scope="col">Precio Unitario</th>
+                              <th scope="col">Total</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <th scope="row">1</th>
+                              <td><input class="articulo-cantidad" name="articulo_1_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 1"></td>
+                              <td><input name="articulo_1_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 1"></td>
+                              <td><input name="articulo_1_descripcion" type="text" aria-label="Descripción del artículo 1"></td>
+                              <td><input class="articulo-precio" name="articulo_1_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 1"></td>
+                              <td><input class="articulo-total" name="articulo_1_total" type="text" readonly aria-label="Total del artículo 1"></td>
+                           </tr>
+                           <tr>
+                              <th scope="row">2</th>
+                              <td><input class="articulo-cantidad" name="articulo_2_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 2"></td>
+                              <td><input name="articulo_2_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 2"></td>
+                              <td><input name="articulo_2_descripcion" type="text" aria-label="Descripción del artículo 2"></td>
+                              <td><input class="articulo-precio" name="articulo_2_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 2"></td>
+                              <td><input class="articulo-total" name="articulo_2_total" type="text" readonly aria-label="Total del artículo 2"></td>
+                           </tr>
+                           <tr>
+                              <th scope="row">3</th>
+                              <td><input class="articulo-cantidad" name="articulo_3_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 3"></td>
+                              <td><input name="articulo_3_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 3"></td>
+                              <td><input name="articulo_3_descripcion" type="text" aria-label="Descripción del artículo 3"></td>
+                              <td><input class="articulo-precio" name="articulo_3_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 3"></td>
+                              <td><input class="articulo-total" name="articulo_3_total" type="text" readonly aria-label="Total del artículo 3"></td>
+                           </tr>
+                           <tr>
+                              <th scope="row">4</th>
+                              <td><input class="articulo-cantidad" name="articulo_4_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 4"></td>
+                              <td><input name="articulo_4_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 4"></td>
+                              <td><input name="articulo_4_descripcion" type="text" aria-label="Descripción del artículo 4"></td>
+                              <td><input class="articulo-precio" name="articulo_4_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 4"></td>
+                              <td><input class="articulo-total" name="articulo_4_total" type="text" readonly aria-label="Total del artículo 4"></td>
+                           </tr>
+                           <tr>
+                              <th scope="row">5</th>
+                              <td><input class="articulo-cantidad" name="articulo_5_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 5"></td>
+                              <td><input name="articulo_5_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 5"></td>
+                              <td><input name="articulo_5_descripcion" type="text" aria-label="Descripción del artículo 5"></td>
+                              <td><input class="articulo-precio" name="articulo_5_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 5"></td>
+                              <td><input class="articulo-total" name="articulo_5_total" type="text" readonly aria-label="Total del artículo 5"></td>
+                           </tr>
+                           <tr>
+                              <th scope="row">6</th>
+                              <td><input class="articulo-cantidad" name="articulo_6_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 6"></td>
+                              <td><input name="articulo_6_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 6"></td>
+                              <td><input name="articulo_6_descripcion" type="text" aria-label="Descripción del artículo 6"></td>
+                              <td><input class="articulo-precio" name="articulo_6_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 6"></td>
+                              <td><input class="articulo-total" name="articulo_6_total" type="text" readonly aria-label="Total del artículo 6"></td>
+                           </tr>
+                           <tr>
+                              <th scope="row">7</th>
+                              <td><input class="articulo-cantidad" name="articulo_7_cantidad" type="number" min="0" step="1" aria-label="Cantidad del artículo 7"></td>
+                              <td><input name="articulo_7_unidad" type="text" placeholder="Pza." aria-label="Unidad del artículo 7"></td>
+                              <td><input name="articulo_7_descripcion" type="text" aria-label="Descripción del artículo 7"></td>
+                              <td><input class="articulo-precio" name="articulo_7_precio_unitario" type="number" min="0" step="0.01" aria-label="Precio unitario del artículo 7"></td>
+                              <td><input class="articulo-total" name="articulo_7_total" type="text" readonly aria-label="Total del artículo 7"></td>
+                           </tr>
+                        </tbody>
+                        <tfoot>
+                           <tr>
+                              <th colspan="5" scope="row">Subtotal</th>
+                              <td><input id="subtotal" name="subtotal" type="text" readonly aria-label="Subtotal del pedido"></td>
+                           </tr>
+                           <tr class="pedido-iva-row">
+                              <th colspan="5" scope="row">IVA (16%)</th>
+                              <td><input id="iva" name="iva" type="text" readonly tabindex="0" aria-describedby="iva-ayuda" aria-label="IVA del pedido"><small id="iva-ayuda">Presiona Enter para sumarlo</small></td>
+                           </tr>
+                           <tr class="pedido-total-row">
+                              <th colspan="5" scope="row">Total</th>
+                              <td><input id="total_general" name="total_general" type="text" readonly aria-label="Total del pedido"></td>
+                           </tr>
+                           <tr class="pedido-anticipo-row">
+                              <th colspan="5" scope="row">Anticipo</th>
+                              <td><input id="anticipo" name="anticipo" type="number" min="0" step="0.01" aria-label="Anticipo del pedido"></td>
+                           </tr>
+                           <tr class="pedido-restante-row">
+                              <th colspan="5" scope="row">Restante</th>
+                              <td><input id="restante" name="restante" type="text" readonly aria-label="Restante del pedido"></td>
+                           </tr>
+                        </tfoot>
+                     </table>
+                  </div>
+                  <button class="pedido-submit" type="submit">Guardar pedido</button>
+                  <p id="pedido-save-status" class="pedido-save-status" role="status" aria-live="polite"></p>
+               </form>
+               </div>
+            </div>
+         </main>
+         <footer>
+            <div class="line">
+               <div class="s-12 l-6">
+                  <p>YA VISTE 2026</p>
+               </div>
+               <div class="s-12 l-6">
+                  <p class="text-right">Diseñado y editado por Raúl Pluma</p>
+               </div>
+            </div>
+         </footer>
+      </section>
+      <script type="text/javascript" src="js/jquery-1.8.3.min.js"></script>
+      <script type="text/javascript" src="js/responsee.js"></script>
+      <script>
+         const supabaseClient = window.supabase.createClient(
+            'https://dgajbxfmirwtpcznthlp.supabase.co',
+            'sb_publishable_mBRMsYNuK5DI1UYuQdi1-g_Urpp61gg'
+         );
+      </script>
+      <script>
+         (function() {
+            var loginPanel = document.getElementById('admin-login-panel');
+            var pedidoFormPanel = document.getElementById('pedido-form-panel');
+            var loginForm = document.getElementById('admin-login-form');
+            var loginStatus = document.getElementById('admin-login-status');
+            var logoutButton = document.getElementById('admin-logout');
+
+            function showLogin(message) {
+               loginPanel.hidden = false;
+               pedidoFormPanel.hidden = true;
+               loginStatus.textContent = message || '';
+            }
+
+            function showPedidoForm() {
+               loginPanel.hidden = true;
+               pedidoFormPanel.hidden = false;
+            }
+
+            loginForm.addEventListener('submit', async function(event) {
+               event.preventDefault();
+               var email = document.getElementById('admin-email').value.trim();
+               var password = document.getElementById('admin-password').value;
+               var loginButton = loginForm.querySelector('button[type="submit"]');
+
+               loginButton.disabled = true;
+               loginButton.textContent = 'Entrando...';
+               loginStatus.textContent = '';
+
+               var result = await supabaseClient.auth.signInWithPassword({
+                  email: email,
+                  password: password
+               });
+
+               if (result.error) {
+                  loginStatus.textContent = 'No se pudo iniciar sesión. Verifica tu correo y contraseña.';
+               } else {
+                  loginForm.reset();
+                  showPedidoForm();
+               }
+
+               loginButton.disabled = false;
+               loginButton.textContent = 'Entrar';
+            });
+
+            logoutButton.addEventListener('click', async function() {
+               await supabaseClient.auth.signOut();
+               showLogin('Sesión cerrada.');
+            });
+
+            supabaseClient.auth.getSession().then(function(result) {
+               if (result.data.session) {
+                  showPedidoForm();
+               } else {
+                  showLogin('Inicia sesión para registrar un pedido.');
+               }
+            });
+         }());
+      </script>
+      <script>
+         (function() {
+            var folioField = document.getElementById('folio');
+            var pedidoForm = document.getElementById('pedido-form');
+
+            function assignNewFolio() {
+               var today = new Date();
+               var datePart = today.getFullYear().toString() +
+                  String(today.getMonth() + 1).padStart(2, '0') +
+                  String(today.getDate()).padStart(2, '0');
+               var storageKey = 'ya-viste-folio-' + datePart;
+               var nextNumber = Number(localStorage.getItem(storageKey) || '0') + 1;
+               localStorage.setItem(storageKey, String(nextNumber));
+               folioField.value = 'PED-' + datePart + '-' + String(nextNumber).padStart(4, '0');
+            }
+
+            assignNewFolio();
+
+            var quantityFields = document.querySelectorAll('.articulo-cantidad');
+            var priceFields = document.querySelectorAll('.articulo-precio');
+            var totalFields = document.querySelectorAll('.articulo-total');
+            var subtotalField = document.getElementById('subtotal');
+            var ivaField = document.getElementById('iva');
+            var grandTotalField = document.getElementById('total_general');
+            var advanceField = document.getElementById('anticipo');
+            var remainingField = document.getElementById('restante');
+            var ivaAplicado = false;
+
+            function updateTotals() {
+               var grandTotal = 0;
+               totalFields.forEach(function(totalField, index) {
+                  var quantity = Number(quantityFields[index].value) || 0;
+                  var price = Number(priceFields[index].value) || 0;
+                  var total = quantity * price;
+                  totalField.value = total ? total.toFixed(2) : '';
+                  grandTotal += total;
+               });
+               var iva = grandTotal * 0.16;
+               subtotalField.value = grandTotal ? grandTotal.toFixed(2) : '';
+               ivaField.value = grandTotal ? iva.toFixed(2) : '';
+               var finalTotal = ivaAplicado ? grandTotal + iva : grandTotal;
+               grandTotalField.value = grandTotal ? finalTotal.toFixed(2) : '';
+               remainingField.value = grandTotal ? (finalTotal - (Number(advanceField.value) || 0)).toFixed(2) : '';
+            }
+
+            quantityFields.forEach(function(field) {
+               field.addEventListener('input', updateTotals);
+            });
+            priceFields.forEach(function(field) {
+               field.addEventListener('input', updateTotals);
+            });
+            advanceField.addEventListener('input', updateTotals);
+            ivaField.addEventListener('keydown', function(event) {
+               if (event.key === 'Enter') {
+                  event.preventDefault();
+                  ivaAplicado = true;
+                  ivaField.classList.add('iva-aplicado');
+                  updateTotals();
+               }
+            });
+
+            window.resetPedidoForm = function() {
+               pedidoForm.reset();
+               ivaAplicado = false;
+               ivaField.classList.remove('iva-aplicado');
+               assignNewFolio();
+               updateTotals();
+            };
+         }());
+      </script>
+      <script>
+         (function() {
+            var pedidoForm = document.getElementById('pedido-form');
+            var saveButton = pedidoForm.querySelector('.pedido-submit');
+            var saveStatus = document.getElementById('pedido-save-status');
+
+            function createPedidoId() {
+               if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                  return window.crypto.randomUUID();
+               }
+               return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(character) {
+                  var randomValue = Math.random() * 16 | 0;
+                  var value = character === 'x' ? randomValue : (randomValue & 0x3 | 0x8);
+                  return value.toString(16);
+               });
+            }
+
+            function fieldValue(name) {
+               var field = pedidoForm.elements[name];
+               return field ? field.value.trim() : '';
+            }
+
+            // Número de WhatsApp del negocio en formato internacional (sin +, espacios ni guiones).
+            var WHATSAPP_NUMERO = '522461357712';
+
+            function formatWhatsAppNumero(telefono) {
+               var soloDigitos = String(telefono || '').replace(/\D/g, '');
+               if (!soloDigitos) {
+                  return WHATSAPP_NUMERO;
+               }
+               // Si no trae lada de país (10 dígitos), se asume México (52).
+               if (soloDigitos.length === 10) {
+                  return '52' + soloDigitos;
+               }
+               return soloDigitos;
+            }
+
+            function enviarFolioPorWhatsApp(pedido) {
+               var mensaje = 'Este es tu número de folio: ' + pedido.folio + ', úsalo para recoger tu pedido o consultar ' +
+                  'detalles de tu pedido desde nuestra página web (publicidadyaviste.com)>Pedidos>Ver mi pedido (Cliente)';
+               var numeroDestino = formatWhatsAppNumero(pedido.telefono_cliente);
+               var url = 'https://wa.me/' + numeroDestino + '?text=' + encodeURIComponent(mensaje);
+               window.open(url, '_blank');
+            }
+
+            pedidoForm.addEventListener('submit', async function(event) {
+               event.preventDefault();
+               if (!pedidoForm.checkValidity()) {
+                  pedidoForm.reportValidity();
+                  return;
+               }
+
+               saveButton.disabled = true;
+               saveButton.textContent = 'Guardando...';
+               saveStatus.textContent = '';
+               saveStatus.classList.remove('pedido-save-success', 'pedido-save-error');
+
+               var pedidoId = createPedidoId();
+               var pedido = {
+                  id: pedidoId,
+                  folio: fieldValue('folio'),
+                  nombre_cliente: fieldValue('nombre_cliente'),
+                  correo_cliente: fieldValue('correo_cliente') || null,
+                  telefono_cliente: fieldValue('telefono_cliente'),
+                  atendido_por: fieldValue('atendido_por'),
+                  fecha_pedido: fieldValue('fecha_pedido') || new Date().toISOString().slice(0, 10),
+                  fecha_estimada_entrega: fieldValue('fecha_estimada_entrega') || null,
+                  subtotal: Number(fieldValue('subtotal')) || 0,
+                  iva: Number(fieldValue('iva')) || 0,
+                  iva_aplicado: document.getElementById('iva').classList.contains('iva-aplicado'),
+                  total_general: Number(fieldValue('total_general')) || 0,
+                  anticipo: Number(fieldValue('anticipo')) || 0,
+                  restante: Number(fieldValue('restante')) || 0,
+                  estado: Number(fieldValue('restante')) === 0 ? 'Pagado' : 'Pendiente'
+               };
+
+               var articulos = [];
+               for (var numeroArticulo = 1; numeroArticulo <= 7; numeroArticulo++) {
+                  var cantidad = Number(fieldValue('articulo_' + numeroArticulo + '_cantidad')) || 0;
+                  var unidad = fieldValue('articulo_' + numeroArticulo + '_unidad');
+                  var descripcion = fieldValue('articulo_' + numeroArticulo + '_descripcion');
+                  var precioUnitario = Number(fieldValue('articulo_' + numeroArticulo + '_precio_unitario')) || 0;
+                  var total = Number(fieldValue('articulo_' + numeroArticulo + '_total')) || 0;
+
+                  if (cantidad > 0 || unidad || descripcion || precioUnitario > 0) {
+                     articulos.push({
+                        pedido_id: pedidoId,
+                        articulo: numeroArticulo,
+                        cantidad: cantidad,
+                        unidad: unidad || null,
+                        descripcion: descripcion || null,
+                        precio_unitario: precioUnitario,
+                        total: total
+                     });
+                  }
+               }
+
+               try {
+                  var pedidoResult = await supabaseClient.from('pedidos').insert(pedido);
+                  if (pedidoResult.error) {
+                     throw pedidoResult.error;
+                  }
+
+                  if (articulos.length > 0) {
+                     var articulosResult = await supabaseClient.from('pedido_articulos').insert(articulos);
+                     if (articulosResult.error) {
+                        throw articulosResult.error;
+                     }
+                  }
+
+                  saveStatus.textContent = 'Pedido guardado correctamente. Folio: ' + pedido.folio;
+                  saveStatus.classList.add('pedido-save-success');
+                  enviarFolioPorWhatsApp(pedido);
+                  window.resetPedidoForm();
+               } catch (error) {
+                  console.error('Error al guardar el pedido:', error);
+                  saveStatus.textContent = 'No se pudo guardar el pedido: ' + (error.message || 'revisa las políticas RLS.');
+                  saveStatus.classList.add('pedido-save-error');
+               } finally {
+                  saveButton.disabled = false;
+                  saveButton.textContent = 'Guardar pedido';
+               }
+            });
+         }());
+      </script>
+   </body>
+</html>
