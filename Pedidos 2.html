@@ -114,6 +114,7 @@
     gap:6px;
     flex-wrap:wrap;
   }
+  .search-cliente{max-width:280px;}
   .chip{
     border:1.5px solid var(--line);
     background:var(--paper-2);
@@ -529,6 +530,7 @@
   <div class="summary-row" id="resumen"></div>
 
   <div class="toolbar">
+    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre de cliente" autocomplete="off">
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
       <button class="chip" data-f="pendiente">Pendiente</button>
@@ -924,7 +926,13 @@ document.getElementById('resumen').addEventListener('click', event=>{
   abrirPedido(botonPedido.dataset.orderId);
 });
 
+function normalizarBusqueda(texto){
+  return String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+
 function pasaFiltro(o){
+  const busqueda = normalizarBusqueda(document.getElementById('buscarCliente').value);
+  if(busqueda && !normalizarBusqueda(o.cliente?.nombre).includes(busqueda)) return false;
   if(currentFilter==='todos') return true;
   if(currentFilter==='debe') return calcTotales(o).saldo > 0.009;
   return o.estatus === currentFilter;
@@ -947,7 +955,8 @@ function renderLista(){
     const restringido = pedidoEmpleadoRestringido(o);
     const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
     const detallesTrabajo = restringido
-      ? `<div class="order-meta">${(o.productos||[]).map(producto=>`${escapeHtml(producto.desc||'Sin descripción')} · Cantidad: ${escapeHtml(String(producto.cantidad??''))}`).join('<br>')}</div>`
+      ? `<div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
+         <div class="order-meta">${(o.productos||[]).map(producto=>`${escapeHtml(producto.desc||'Sin descripción')} · Cantidad: ${escapeHtml(String(producto.cantidad??''))}`).join('<br>')}</div>`
       : '';
     return `
       <div class="order-card" onclick="abrirPedido('${o.id}')">
@@ -990,6 +999,8 @@ function pedidoEmpleadoRestringido(order){
 function escapeHtml(str){
   return (str||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+
+document.getElementById('buscarCliente').addEventListener('input', renderLista);
 
 document.getElementById('filtros').addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip');
@@ -1153,7 +1164,10 @@ function renderForm(){
   const mostrarFacturacion = Object.values(f).some(valor=>String(valor||'').trim());
 
   body.innerHTML = `
-    ${restringido ? '' : `
+    ${restringido ? `
+      <div class="section-title">Cliente</div>
+      <div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
+    ` : `
       <div class="section-title">Cliente</div>
       <label>Nombre</label>
       <input id="f_nombre" list="clientes-nombres" value="${escapeHtml(o.cliente?.nombre||'')}" placeholder="Nombre del cliente" ${roAttr}>

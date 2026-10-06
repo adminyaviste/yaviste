@@ -155,6 +155,7 @@ as $$
       - 'anticipo'
       - 'metodoPago'
       - 'ivaAplica'
+      || jsonb_build_object('cliente', jsonb_build_object('nombre', coalesce(pedido_datos #>> '{cliente,nombre}', '')))
     ),
     '{saldoPendiente}',
     case
