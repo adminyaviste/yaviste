@@ -372,6 +372,14 @@
     margin-top:18px;padding-top:12px;border-top:1px dashed #E3DFD3;
     font-size:11px;color:#78736A;display:flex;justify-content:space-between;
   }
+  .nota-redes{
+    display:flex;justify-content:center;align-items:center;gap:18px;
+    margin-top:12px;padding-top:10px;border-top:1px solid #E3DFD3;
+    color:#1A1A1A;font-size:10.5px;
+  }
+  .nota-redes-item{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+  .nota-redes-icon{display:block;width:18px;height:18px;flex-shrink:0;object-fit:contain;}
+  .nota-redes-icon-instagram{width:32px;}
 
   /* Portal de acceso */
   .portal{
@@ -461,9 +469,9 @@
   <div class="consulta-box">
     <button class="btn btn-ghost" id="btnVolverPortal" style="color:var(--teal-dark);padding:0;margin-bottom:14px;">← Volver</button>
     <h2 class="display" style="font-size:17px;margin:0 0 4px;">Consultar mi pedido</h2>
-    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;">Ingresa el WhatsApp con el que hiciste tu pedido para ver el estatus.</div>
-    <label>WhatsApp con el que hiciste tu pedido</label>
-    <input id="c_tel" placeholder="246 000 0000">
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:16px;">Ingresa el folio de tu pedido para ver su estatus.</div>
+    <label for="c_folio">Número de folio</label>
+    <input id="c_folio" type="text" inputmode="numeric" autocomplete="off" placeholder="#0001">
     <button class="btn btn-primary" id="btnConsultar" style="width:100%;margin-top:16px;">Consultar estatus</button>
     <div id="consultaResultado"></div>
   </div>
@@ -496,7 +504,7 @@
       <button class="chip" data-f="pendiente">Pendiente</button>
       <button class="chip" data-f="proceso">En proceso</button>
       <button class="chip" data-f="terminado">Terminado</button>
-      <button class="chip" data-f="debe">Con saldo</button>
+      <button class="chip" data-f="debe">Saldo pendiente</button>
     </div>
   </div>
 
@@ -537,7 +545,7 @@ window.addEventListener('unhandledrejection', function(e){
   avisar('Ocurrió un problema al guardar/procesar. Detalle: ' + detalle + '\n\nIntenta de nuevo; si se repite, avísame el mensaje exacto.');
 });
 
-let state = { nextFolio: 1, orders: [] };
+let state = { orders: [] };
 let currentFilter = 'todos';
 let editingId = null;
 let currentRole = null; // 'admin' | 'empleado'
@@ -653,7 +661,7 @@ async function entrarDashboard(rol){
 function renderTarjetaEstado(pedido){
   const total = Number(pedido.total)||0;
   const anticipo = Number(pedido.anticipo)||0;
-  const saldo = total-anticipo;
+  const saldo = pedido.estatus_pago==='pagado' ? 0 : total-anticipo;
   const pasos = ['pendiente','proceso','terminado'];
   const idx = pasos.indexOf(pedido.estatus);
   const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado — listo para recoger'}[pedido.estatus];
@@ -685,25 +693,24 @@ function telefonoE164(valor){
 }
 
 async function buscarPedidoPublico(){
-  const telefono = document.getElementById('c_tel').value.trim();
+  const folioTexto = document.getElementById('c_folio').value.trim().replace(/^#\s*/, '');
   const cont = document.getElementById('consultaResultado');
 
-  if(!telefono){
-    cont.innerHTML = `<div class="estado-cliente">Escribe el WhatsApp con el que hiciste tu pedido.</div>`;
+  if(!/^\d+$/.test(folioTexto) || Number(folioTexto)<=0){
+    cont.innerHTML = `<div class="estado-cliente">Escribe un número de folio válido.</div>`;
     return;
   }
 
   try{
     if(!supabaseClient) throw new Error('La consulta de pedidos todavía no está configurada.');
-    const phone = telefonoE164(telefono);
-    const {data, error} = await supabaseClient.rpc('consultar_pedidos_por_telefono', {
-      telefono_buscado:phone
+    const {data, error} = await supabaseClient.rpc('consultar_pedido_por_folio', {
+      folio_buscado:Number(folioTexto)
     });
     if(error) throw error;
     const pedidos = data || [];
 
     if(pedidos.length===0){
-      cont.innerHTML = `<div class="estado-cliente">No encontramos ningún pedido con ese WhatsApp.</div>`;
+      cont.innerHTML = `<div class="estado-cliente">No encontramos ningún pedido con ese folio.</div>`;
       return;
     }
 
@@ -758,7 +765,6 @@ async function loadState(){
   }
 
   state.orders = (data || []).map(pedidoDesdeFila);
-  state.nextFolio = state.orders.reduce((max, order)=>Math.max(max, Number(order.folio)||0), 0) + 1;
   render();
 }
 
@@ -786,7 +792,7 @@ async function guardarPedidoEnSupabase(order, esNuevo){
     return pedidoDesdeFila(data);
   }
   if(esNuevo){
-    resultado = await supabaseClient.from('pedidos').insert(filaDesdePedido(order))
+    resultado = await supabaseClient.from('pedidos').insert(filaDesdePedido(order, true))
       .select('id, folio, creado, estatus, estatus_pago, datos').single();
   }else{
     resultado = await supabaseClient.from('pedidos').update(filaDesdePedido(order))
@@ -800,7 +806,7 @@ function calcTotales(order){
   const subtotal = order.productos.reduce((a,p)=>a + (Number(p.cantidad)||0)*(Number(p.precio)||0), 0);
   const iva = order.ivaAplica ? subtotal*0.16 : 0;
   const total = subtotal + iva;
-  const saldo = total - (Number(order.anticipo)||0);
+  const saldo = order.estatusPago==='pagado' ? 0 : total - (Number(order.anticipo)||0);
   return {subtotal, iva, total, saldo};
 }
 
@@ -884,10 +890,16 @@ document.getElementById('filtros').addEventListener('click', (e)=>{
 
 // ---------- Drawer / formulario ----------
 
+function crearFolioAleatorio(){
+  const valoresAleatorios = window.crypto.getRandomValues(new Uint32Array(2));
+  const numeroAleatorio = (valoresAleatorios[0] & 0x1fffff) * 4294967296 + valoresAleatorios[1];
+  return 1000000000 + (numeroAleatorio % 9000000000);
+}
+
 function nuevoPedidoVacio(){
   return {
     id: 'o'+Date.now(),
-    folio: state.nextFolio,
+    folio: crearFolioAleatorio(),
     creado: new Date().toISOString(),
     cliente: {nombre:'', whatsapp:'', correo:''},
     fechaEntrega:'',
@@ -936,6 +948,69 @@ function abrirPedido(id){
   openDrawer();
 }
 
+function opcionesClientesRegistrados(campo){
+  const valores = new Set();
+  state.orders.forEach(order=>{
+    const valor = campo==='nombre' ? order.cliente?.nombre : order.cliente?.whatsapp;
+    if(valor && valor.trim()) valores.add(valor.trim());
+  });
+  return [...valores].map(valor=>`<option value="${escapeHtml(valor)}"></option>`).join('');
+}
+
+function normalizarTelefonoCliente(valor){
+  const digitos = valor.replace(/\D/g,'');
+  if(digitos.length===10) return '52'+digitos;
+  if(digitos.length===13 && digitos.startsWith('521')) return '52'+digitos.slice(3);
+  return digitos;
+}
+
+function buscarClienteRegistrado(campo, valor){
+  const buscar = campo==='nombre' ? valor.trim().toLocaleLowerCase('es-MX') : normalizarTelefonoCliente(valor);
+  if(!buscar) return null;
+
+  const coincidencias = state.orders.filter(order=>{
+    const cliente = order.cliente || {};
+    const dato = campo==='nombre' ? cliente.nombre : cliente.whatsapp;
+    if(!dato) return false;
+    return campo==='nombre'
+      ? dato.trim().toLocaleLowerCase('es-MX')===buscar
+      : normalizarTelefonoCliente(dato)===buscar;
+  }).sort((a,b)=>Number(b.folio||0)-Number(a.folio||0));
+
+  if(!coincidencias.length) return null;
+  const perfil = {cliente:{nombre:'', whatsapp:'', correo:''}, facturacion:{}};
+  const camposCliente = ['nombre', 'whatsapp', 'correo'];
+  const camposFacturacion = ['razonSocial', 'rfc', 'regimenFiscal', 'nombreComercial', 'calle', 'numero', 'colonia', 'codigoPostal', 'municipio', 'estado'];
+  coincidencias.forEach(order=>{
+    const cliente = order.cliente || {};
+    const facturacion = order.facturacion || {};
+    camposCliente.forEach(campo=>{
+      if(!perfil.cliente[campo] && cliente[campo]) perfil.cliente[campo] = cliente[campo];
+    });
+    camposFacturacion.forEach(campo=>{
+      if(!perfil.facturacion[campo] && facturacion[campo]) perfil.facturacion[campo] = facturacion[campo];
+    });
+  });
+  return perfil;
+}
+
+function autocompletarDatosCliente(campo){
+  const valor = document.getElementById(campo==='nombre' ? 'f_nombre' : 'f_wa').value;
+  const perfil = buscarClienteRegistrado(campo, valor);
+  if(!perfil) return;
+
+  document.getElementById('f_nombre').value = perfil.cliente.nombre;
+  document.getElementById('f_wa').value = perfil.cliente.whatsapp;
+  document.getElementById('f_correo').value = perfil.cliente.correo;
+  Object.entries({
+    razonSocial:'fc_razonSocial', rfc:'fc_rfc', regimenFiscal:'fc_regimenFiscal',
+    nombreComercial:'fc_nombreComercial', calle:'fc_calle', numero:'fc_numero',
+    colonia:'fc_colonia', codigoPostal:'fc_codigoPostal', municipio:'fc_municipio', estado:'fc_estado'
+  }).forEach(([campo, id])=>{
+    document.getElementById(id).value = perfil.facturacion[campo] || '';
+  });
+}
+
 function openDrawer(){
   document.getElementById('overlay').classList.add('show');
   document.getElementById('drawer').classList.add('show');
@@ -960,9 +1035,11 @@ function renderForm(){
   body.innerHTML = `
     <div class="section-title">Cliente</div>
     <label>Nombre</label>
-    <input id="f_nombre" value="${escapeHtml(o.cliente.nombre)}" placeholder="Nombre del cliente" ${roAttr}>
+    <input id="f_nombre" list="clientes-nombres" value="${escapeHtml(o.cliente.nombre)}" placeholder="Nombre del cliente" ${roAttr}>
+    <datalist id="clientes-nombres">${opcionesClientesRegistrados('nombre')}</datalist>
     <label>WhatsApp</label>
-    <input id="f_wa" value="${escapeHtml(o.cliente.whatsapp)}" placeholder="246 000 0000" ${roAttr}>
+    <input id="f_wa" list="clientes-telefonos" value="${escapeHtml(o.cliente.whatsapp)}" placeholder="246 000 0000" ${roAttr}>
+    <datalist id="clientes-telefonos">${opcionesClientesRegistrados('whatsapp')}</datalist>
     <label>Correo (opcional)</label>
     <input id="f_correo" value="${escapeHtml(o.cliente.correo)}" placeholder="correo@ejemplo.com" ${roAttr}>
     <label>Fecha de entrega</label>
@@ -1051,6 +1128,8 @@ function renderForm(){
   document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
   document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
   document.getElementById('btnWA').addEventListener('click', abrirWhatsapp);
+  document.getElementById('f_nombre').addEventListener('change', ()=>autocompletarDatosCliente('nombre'));
+  document.getElementById('f_wa').addEventListener('change', ()=>autocompletarDatosCliente('whatsapp'));
   document.getElementById('f_iva').addEventListener('change', e=>{draftOrder.ivaAplica=e.target.checked; renderTotales();});
   document.getElementById('f_anticipo').addEventListener('input', e=>{draftOrder.anticipo=e.target.value; renderTotales();});
 
@@ -1119,6 +1198,11 @@ function actualizarSubtotalFila(i){
 
 function renderTotales(){
   const t = calcTotales(draftOrder);
+  const saldoCalculado = t.total - (Number(draftOrder.anticipo)||0);
+  if(t.total>0 && saldoCalculado<=0.009 && draftOrder.estatusPago!=='pagado'){
+    draftOrder.estatusPago='pagado';
+    renderPaymentStatusActions();
+  }
   document.getElementById('totalesBox').innerHTML = `
     <div class="linea"><span>Subtotal</span><span>$${fmt(t.subtotal)}</span></div>
     <div class="linea"><span>IVA (16%)</span><span>$${fmt(t.iva)}</span></div>
@@ -1157,6 +1241,7 @@ function renderPaymentStatusActions(){
     button.addEventListener('click', ()=>{
       draftOrder.estatusPago=button.dataset.paymentStatus;
       renderPaymentStatusActions();
+      renderTotales();
     });
   });
 }
@@ -1211,7 +1296,6 @@ async function guardarDesdeForm(){
     if(idx===-1) state.orders.push(pedidoGuardado);
     else state.orders[idx] = pedidoGuardado;
     editingId = pedidoGuardado.id;
-    state.nextFolio = state.orders.reduce((max, order)=>Math.max(max, Number(order.folio)||0), 0) + 1;
     render();
     closeDrawer();
     toast('Pedido guardado ✓');
@@ -1266,6 +1350,20 @@ function construirNotaHTML(o){
         <span>Chiautempan, Tlaxcala</span>
         <span>Gracias por su preferencia</span>
       </div>
+      <div class="nota-redes">
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20wsp.png" alt="">
+          <span>+522461357712</span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon nota-redes-icon-instagram" src="%C3%ADcono%20insta.png" alt="">
+          <span>@yaviste1</span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20fb.webp" alt="">
+          <span>YA VISTE</span>
+        </span>
+      </div>
     </div>
   `;
 }
@@ -1274,11 +1372,32 @@ async function generarNota(tipo){
   leerFormAlDraft();
   const cont = document.getElementById('nota-render');
   cont.innerHTML = construirNotaHTML(draftOrder);
+  const posicionOriginal = {left:cont.style.left, top:cont.style.top, visibility:cont.style.visibility};
   cont.style.left = '0px';
-  cont.style.top = '-9999px';
+  cont.style.top = '0px';
+  cont.style.visibility = 'hidden';
 
-  const canvas = await html2canvas(cont, {scale:2, backgroundColor:'#ffffff'});
-  cont.style.left = '-9999px';
+  let canvas;
+  try{
+    const imagenesRedes = Array.from(cont.querySelectorAll('.nota-redes-icon'));
+    await Promise.all(imagenesRedes.map(imagen=>imagen.decode()));
+    canvas = await html2canvas(cont, {
+      scale:2,
+      backgroundColor:'#ffffff',
+      windowWidth:window.innerWidth,
+      windowHeight:Math.max(window.innerHeight, cont.scrollHeight),
+      scrollX:0,
+      scrollY:0,
+      onclone:clonedDocument=>{
+        const notaClonada = clonedDocument.getElementById('nota-render');
+        if(notaClonada) notaClonada.style.visibility = 'visible';
+      }
+    });
+  }finally{
+    cont.style.left = posicionOriginal.left;
+    cont.style.top = posicionOriginal.top;
+    cont.style.visibility = posicionOriginal.visibility;
+  }
 
   const folioStr = String(draftOrder.folio).padStart(4,'0');
   if(tipo==='jpg'){
@@ -1288,9 +1407,56 @@ async function generarNota(tipo){
     link.click();
   } else {
     const { jsPDF } = window.jspdf;
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
-    const pdf = new jsPDF({unit:'pt', format:[canvas.width/2, canvas.height/2]});
-    pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width/2, canvas.height/2);
+    const pdf = new jsPDF({unit:'mm', format:'a4'});
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const pageMargin = 10;
+    const printableWidth = pageWidth - pageMargin * 2;
+    const printableHeight = pageHeight - pageMargin * 2;
+    const pixelsPerMm = canvas.width / printableWidth;
+    const maxPagePixels = Math.floor(printableHeight * pixelsPerMm);
+    const notaBounds = cont.getBoundingClientRect();
+    const escalaCanvas = canvas.width / notaBounds.width;
+    const cortesSeguros = Array.from(cont.querySelectorAll(
+      '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes'
+    )).map(elemento=>Math.round((elemento.getBoundingClientRect().bottom - notaBounds.top) * escalaCanvas))
+      .filter(corte=>corte>0 && corte<=canvas.height)
+      .sort((a,b)=>a-b);
+    const encabezadoTabla = cont.querySelector('.nota-tabla thead');
+    const altoEncabezado = encabezadoTabla
+      ? Math.ceil(encabezadoTabla.getBoundingClientRect().height * escalaCanvas)
+      : 0;
+    const inicioEncabezado = encabezadoTabla
+      ? Math.round((encabezadoTabla.getBoundingClientRect().top - notaBounds.top) * escalaCanvas)
+      : 0;
+
+    let inicio = 0;
+    let numeroPagina = 0;
+    while(inicio < canvas.height){
+      const repetirEncabezado = numeroPagina > 0 && altoEncabezado > 0;
+      const altoDisponible = maxPagePixels - (repetirEncabezado ? altoEncabezado : 0);
+      const limite = Math.min(canvas.height, inicio + altoDisponible);
+      const cortesPagina = cortesSeguros.filter(corte=>corte>inicio && corte<=limite);
+      const fin = limite===canvas.height ? canvas.height : (cortesPagina.pop() || limite);
+      const altoContenido = fin - inicio;
+      const altoPagina = altoContenido + (repetirEncabezado ? altoEncabezado : 0);
+      const paginaCanvas = document.createElement('canvas');
+      paginaCanvas.width = canvas.width;
+      paginaCanvas.height = altoPagina;
+      const contexto = paginaCanvas.getContext('2d');
+
+      if(repetirEncabezado){
+        contexto.drawImage(canvas, 0, inicioEncabezado, canvas.width, altoEncabezado, 0, 0, canvas.width, altoEncabezado);
+      }
+      contexto.drawImage(canvas, 0, inicio, canvas.width, altoContenido, 0,
+        repetirEncabezado ? altoEncabezado : 0, canvas.width, altoContenido);
+
+      if(numeroPagina > 0) pdf.addPage();
+      const altoEnMm = altoPagina / pixelsPerMm;
+      pdf.addImage(paginaCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', pageMargin, pageMargin, printableWidth, altoEnMm);
+      inicio = fin;
+      numeroPagina++;
+    }
     pdf.save(`pedido-${folioStr}.pdf`);
   }
 }

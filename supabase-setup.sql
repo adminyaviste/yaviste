@@ -25,6 +25,46 @@ create table if not exists public.pedidos (
 alter table public.pedidos add column if not exists estatus_pago text not null default 'pendiente'
   check (estatus_pago in ('pendiente', 'pagado'));
 
+alter table public.pedidos alter column folio drop identity if exists;
+
+create or replace function public.generar_folio_aleatorio()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  bytes_aleatorios bytea;
+  valor_aleatorio bigint;
+  folio_candidato bigint;
+  indice_byte integer;
+begin
+  if new.folio between 1000000000 and 9999999999
+    and not exists (select 1 from public.pedidos as pedido where pedido.folio = new.folio) then
+    return new;
+  end if;
+
+  loop
+    bytes_aleatorios := pg_catalog.uuid_send(pg_catalog.gen_random_uuid());
+    valor_aleatorio := 0;
+    for indice_byte in 0..7 loop
+      valor_aleatorio := (valor_aleatorio * 256 + pg_catalog.get_byte(bytes_aleatorios, indice_byte)) % 9000000000;
+    end loop;
+    folio_candidato := 1000000000 + valor_aleatorio;
+    if not exists (select 1 from public.pedidos as pedido where pedido.folio = folio_candidato) then
+      new.folio := folio_candidato;
+      return new;
+    end if;
+  end loop;
+end;
+$$;
+
+drop trigger if exists generar_folio_aleatorio on public.pedidos;
+create trigger generar_folio_aleatorio
+before insert on public.pedidos
+for each row execute function public.generar_folio_aleatorio();
+revoke all on function public.generar_folio_aleatorio() from public, anon, authenticated;
+
 create table if not exists public.pedidos_cliente (
   id text primary key references public.pedidos(id) on delete cascade,
   folio bigint not null,
@@ -96,33 +136,22 @@ using (
 );
 
 drop function if exists public.consultar_pedidos_por_telefono(text);
-create function public.consultar_pedidos_por_telefono(telefono_buscado text)
+drop function if exists public.consultar_pedido_por_folio(bigint);
+create function public.consultar_pedido_por_folio(folio_buscado bigint)
 returns table (folio bigint, fecha_entrega text, estatus text, estatus_pago text, total numeric, anticipo numeric)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  with telefono_normalizado as (
-    select regexp_replace(coalesce(telefono_buscado, ''), '[^0-9]', '', 'g') as digitos
-  )
   select pedido.folio, pedido.fecha_entrega, pedido.estatus, pedido.estatus_pago, pedido.total, pedido.anticipo
   from public.pedidos_cliente as pedido
-  cross join telefono_normalizado
-  where pedido.cliente_telefono = case
-    when length(telefono_normalizado.digitos) = 10 then '52' || telefono_normalizado.digitos
-    when length(telefono_normalizado.digitos) = 13 and left(telefono_normalizado.digitos, 3) = '521'
-      then '52' || substring(telefono_normalizado.digitos from 4)
-    when length(telefono_normalizado.digitos) = 12 and left(telefono_normalizado.digitos, 2) = '52'
-      then telefono_normalizado.digitos
-    else ''
-  end
-  order by pedido.folio desc
-  limit 20
+  where pedido.folio = folio_buscado
+  limit 1
 $$;
 
-revoke all on function public.consultar_pedidos_por_telefono(text) from public;
-grant execute on function public.consultar_pedidos_por_telefono(text) to anon, authenticated;
+revoke all on function public.consultar_pedido_por_folio(bigint) from public;
+grant execute on function public.consultar_pedido_por_folio(bigint) to anon, authenticated;
 
 drop policy if exists "Admins can insert orders" on public.pedidos;
 drop policy if exists "Staff can create orders" on public.pedidos;
@@ -137,7 +166,7 @@ on public.pedidos for update to authenticated
 using (public.current_staff_role() = 'admin')
 with check (public.current_staff_role() = 'admin');
 
-drop function if exists public.actualizar_estatus_pedido(text, text);
+drop function if exists public.actualizar_estatus_pedido(text, text, text);
 create function public.actualizar_estatus_pedido(
   p_pedido_id text,
   p_nuevo_estatus text,
