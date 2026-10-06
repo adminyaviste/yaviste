@@ -143,6 +143,10 @@
   }
   .summary-card .num{font-family:'Archivo Black';font-size:20px;}
   .summary-card .label{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .summary-delivery-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:104px;overflow-y:auto;}
+  .summary-delivery-order{padding:0;border:0;background:none;color:var(--teal-dark);font:500 11px 'Inter',sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  .summary-delivery-order:hover{text-decoration:underline;}
+  .summary-delivery-empty{margin-top:8px;color:var(--muted);font-size:11px;}
 
   .order-card{
     background:var(--paper-2);
@@ -819,15 +823,43 @@ function renderResumen(){
   const pendientes = state.orders.filter(o=>o.estatus!=='terminado').length;
   let porCobrar = 0;
   state.orders.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
-  const hoy = new Date().toISOString().slice(0,10);
-  const entregasHoy = state.orders.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado').length;
+  const hoy = fechaLocalISO();
+  const entregasHoy = state.orders.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado');
 
   document.getElementById('resumen').innerHTML = `
     <div class="summary-card"><div class="num">${pendientes}</div><div class="label">Pedidos activos</div></div>
     <div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>
-    <div class="summary-card"><div class="num">${entregasHoy}</div><div class="label">Entregas hoy</div></div>
+    <div class="summary-card">
+      <div class="num">${entregasHoy.length}</div>
+      <div class="label">Entregas hoy</div>
+      ${entregasHoy.length
+        ? `<div class="summary-delivery-list">${entregasHoy.map(order=>`
+            <button class="summary-delivery-order" type="button" data-order-id="${escapeHtml(String(order.id))}">#${String(order.folio).padStart(4,'0')} · ${escapeHtml(order.cliente.nombre||'Sin nombre')}</button>
+          `).join('')}</div>`
+        : '<div class="summary-delivery-empty">Sin entregas pendientes</div>'}
+    </div>
   `;
 }
+
+function fechaLocalISO(fecha=new Date()){
+  return [fecha.getFullYear(), String(fecha.getMonth()+1).padStart(2,'0'), String(fecha.getDate()).padStart(2,'0')].join('-');
+}
+
+function programarActualizacionDiaria(){
+  const ahora = new Date();
+  const siguienteMedianoche = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()+1);
+  window.setTimeout(()=>{
+    renderResumen();
+    programarActualizacionDiaria();
+  }, siguienteMedianoche.getTime()-ahora.getTime());
+}
+programarActualizacionDiaria();
+
+document.getElementById('resumen').addEventListener('click', event=>{
+  const botonPedido = event.target.closest('.summary-delivery-order');
+  if(!botonPedido) return;
+  abrirPedido(botonPedido.dataset.orderId);
+});
 
 function pasaFiltro(o){
   if(currentFilter==='todos') return true;
