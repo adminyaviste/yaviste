@@ -92,6 +92,7 @@
   .btn-ghost{background:transparent;color:var(--teal-dark);padding:8px 10px;}
   .btn-teal{background:var(--teal);color:#fff;}
   .btn-wa{background:#25D366;color:#fff;}
+  .btn-cotizacion{background:var(--yellow);color:var(--ink);}
   .btn:disabled{opacity:0.4;cursor:not-allowed;}
 
   main{
@@ -192,6 +193,16 @@
   }
   .order-money .saldo-pos{color:var(--danger);font-weight:700;}
   .order-money .saldo-ok{color:#1E7A46;font-weight:700;}
+  .employee-balance{
+    margin-top:10px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    color:var(--muted);
+    font-size:13px;
+  }
+  .employee-balance strong{color:var(--danger);}
   .order-edit-hint{
     font-size:11px;
     color:var(--muted);
@@ -275,6 +286,17 @@
     margin-bottom:8px;
     color:var(--teal-dark);
   }
+  .billing-toggle{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:0;
+    color:var(--teal-dark);
+    font-family:'Archivo Black',sans-serif;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .billing-toggle input{width:auto;margin:0;flex-shrink:0;}
 
   .prod-row{
     background:#fff;
@@ -384,6 +406,10 @@
   .nota-redes-item{display:flex;align-items:center;gap:5px;white-space:nowrap;}
   .nota-redes-icon{display:block;width:18px;height:18px;flex-shrink:0;object-fit:contain;}
   .nota-redes-icon-instagram{width:32px;}
+  .nota-redes{flex-wrap:wrap;row-gap:8px;}
+  .nota-redes-tels{display:flex;flex-direction:column;line-height:1.35;}
+  .nota-consulta{margin-top:10px;text-align:center;font-size:10.5px;color:#78736A;line-height:1.4;}
+  .nota-link{color:#E6007E;text-decoration:underline;}
 
   /* Portal de acceso */
   .portal{
@@ -632,6 +658,20 @@ function mostrarConsultaCliente(){
   document.getElementById('consulta').style.display='flex';
 }
 if(new URLSearchParams(window.location.search).get('consulta') === '1') mostrarConsultaCliente();
+
+async function restaurarSesionPersonal(){
+  if(!supabaseClient) return;
+  try{
+    const {data:{session}} = await supabaseClient.auth.getSession();
+    if(!session) return;
+    const {data:staff} = await supabaseClient
+      .from('staff_roles').select('role').eq('user_id', session.user.id).maybeSingle();
+    if(staff && (staff.role==='admin' || staff.role==='empleado')) await entrarDashboard(staff.role);
+  }catch(error){
+    console.error('No se pudo restaurar la sesión:', error);
+  }
+}
+if(new URLSearchParams(window.location.search).get('volver') === '1') restaurarSesionPersonal();
 document.getElementById('btnVolverPortal').addEventListener('click', ()=>{
   document.getElementById('consulta').style.display='none';
   document.getElementById('portal').style.display='flex';
@@ -651,6 +691,7 @@ async function entrarDashboard(rol){
   document.getElementById('rolTag').textContent = rol==='admin' ? 'Panel administrador' : 'Panel empleado';
   document.getElementById('btnNuevo').style.display = 'inline-flex';
   document.getElementById('btnExportar').style.display = rol==='admin' ? 'inline-flex' : 'none';
+  document.querySelector('#filtros [data-f="debe"]').style.display = rol==='admin' ? '' : 'none';
   try{
     await loadState();
   }catch(error){
@@ -663,9 +704,10 @@ async function entrarDashboard(rol){
 }
 
 function renderTarjetaEstado(pedido){
-  const total = Number(pedido.total)||0;
+  const mostrarMontos = pedido.total!==null;
+  const total = mostrarMontos ? Number(pedido.total)||0 : 0;
   const anticipo = Number(pedido.anticipo)||0;
-  const saldo = pedido.estatus_pago==='pagado' ? 0 : total-anticipo;
+  const saldo = mostrarMontos ? (pedido.estatus_pago==='pagado' ? 0 : total-anticipo) : 0;
   const pasos = ['pendiente','proceso','terminado'];
   const idx = pasos.indexOf(pedido.estatus);
   const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado — listo para recoger'}[pedido.estatus];
@@ -679,10 +721,12 @@ function renderTarjetaEstado(pedido){
         <div class="paso ${idx>=2?'on':''}"></div>
       </div>
       <div class="fila"><span>Fecha de entrega</span><b>${pedido.fecha_entrega||'Por confirmar'}</b></div>
-      <div class="fila"><span>Total</span><b>$${fmt(total)}</b></div>
-      <div class="fila"><span>Anticipo</span><b>$${fmt(anticipo)}</b></div>
+      ${mostrarMontos?`
+        <div class="fila"><span>Total</span><b>$${fmt(total)}</b></div>
+        <div class="fila"><span>Anticipo</span><b>$${fmt(anticipo)}</b></div>
+      `:''}
       <div class="fila"><span>Estatus de pago</span><b>${pedido.estatus_pago==='pagado'?'Pagado':'Pendiente'}</b></div>
-      <div class="fila"><span>${saldo>0.009?'Saldo pendiente':'Estatus de saldo'}</span><b>${saldo>0.009?'$'+fmt(saldo):'Liquidado'}</b></div>
+      ${mostrarMontos?`<div class="fila"><span>${saldo>0.009?'Saldo pendiente':'Estatus de saldo'}</span><b>${saldo>0.009?'$'+fmt(saldo):'Liquidado'}</b></div>`:''}
     </div>
   `;
 }
@@ -733,9 +777,17 @@ function fmt(n){
 
 async function loadState(){
   if(!supabaseClient) throw new Error('Configura la URL y la clave pública de Supabase en supabase-config.js.');
-  let {data, error} = await supabaseClient.from('pedidos')
-    .select('id, folio, creado, estatus, estatus_pago, datos').order('folio', {ascending:false});
-  if(error) throw error;
+  let data;
+  if(currentRole==='empleado'){
+    const resultado = await supabaseClient.rpc('pedidos_para_empleado');
+    if(resultado.error) throw resultado.error;
+    data = resultado.data;
+  }else{
+    const resultado = await supabaseClient.from('pedidos')
+      .select('id, folio, creado, estatus, estatus_pago, datos').order('folio', {ascending:false});
+    if(resultado.error) throw resultado.error;
+    data = resultado.data;
+  }
 
   if(currentRole==='admin'){
     let legacyOrders = [];
@@ -795,6 +847,15 @@ async function guardarPedidoEnSupabase(order, esNuevo){
     if(error) throw error;
     return pedidoDesdeFila(data);
   }
+  if(currentRole==='empleado' && esNuevo){
+    const {error} = await supabaseClient.from('pedidos').insert(filaDesdePedido(order, true));
+    if(error) throw error;
+    const {data, error:loadError} = await supabaseClient.rpc('pedidos_para_empleado');
+    if(loadError) throw loadError;
+    const pedidoCreado = (data || []).find(pedido=>String(pedido.id)===String(order.id));
+    if(!pedidoCreado) throw new Error('El pedido se guardó, pero no se pudo recuperar su vista de empleado.');
+    return pedidoDesdeFila(pedidoCreado);
+  }
   if(esNuevo){
     resultado = await supabaseClient.from('pedidos').insert(filaDesdePedido(order, true))
       .select('id, folio, creado, estatus, estatus_pago, datos').single();
@@ -822,19 +883,21 @@ function render(){
 function renderResumen(){
   const pendientes = state.orders.filter(o=>o.estatus!=='terminado').length;
   let porCobrar = 0;
-  state.orders.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
+  if(currentRole==='admin') state.orders.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
   const hoy = fechaLocalISO();
   const entregasHoy = state.orders.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado');
 
   document.getElementById('resumen').innerHTML = `
     <div class="summary-card"><div class="num">${pendientes}</div><div class="label">Pedidos activos</div></div>
-    <div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>
+    ${currentRole==='admin'
+      ? `<div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>`
+      : `<div class="summary-card"><div class="num">${state.orders.filter(o=>o.estatus==='terminado').length}</div><div class="label">Pedidos terminados</div></div>`}
     <div class="summary-card">
       <div class="num">${entregasHoy.length}</div>
       <div class="label">Entregas hoy</div>
       ${entregasHoy.length
         ? `<div class="summary-delivery-list">${entregasHoy.map(order=>`
-            <button class="summary-delivery-order" type="button" data-order-id="${escapeHtml(String(order.id))}">#${String(order.folio).padStart(4,'0')} · ${escapeHtml(order.cliente.nombre||'Sin nombre')}</button>
+            <button class="summary-delivery-order" type="button" data-order-id="${escapeHtml(String(order.id))}">#${String(order.folio).padStart(4,'0')}${currentRole==='admin'?' · '+escapeHtml(order.cliente?.nombre||'Sin nombre'):''}</button>
           `).join('')}</div>`
         : '<div class="summary-delivery-empty">Sin entregas pendientes</div>'}
     </div>
@@ -881,30 +944,47 @@ function renderLista(){
   }
 
   cont.innerHTML = items.map(o=>{
-    const t = calcTotales(o);
-    const saldoClass = t.saldo > 0.009 ? 'saldo-pos' : 'saldo-ok';
+    const restringido = pedidoEmpleadoRestringido(o);
     const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
+    const detallesTrabajo = restringido
+      ? `<div class="order-meta">${(o.productos||[]).map(producto=>`${escapeHtml(producto.desc||'Sin descripción')} · Cantidad: ${escapeHtml(String(producto.cantidad??''))}`).join('<br>')}</div>`
+      : '';
     return `
       <div class="order-card" onclick="abrirPedido('${o.id}')">
         <div class="order-top">
           <div>
             <div class="folio">#${String(o.folio).padStart(4,'0')}</div>
-            <div class="cliente-nombre">${escapeHtml(o.cliente.nombre||'Sin nombre')}</div>
-            <div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}</div>
+            ${restringido
+              ? detallesTrabajo
+              : `<div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
+                 <div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}</div>`}
           </div>
           <div class="order-statuses">
             <span class="pill ${o.estatus}">${estatusLabel}</span>
             <span class="pill ${o.estatusPago==='pagado'?'pagado':'pago-pendiente'}">Pago: ${o.estatusPago==='pagado'?'Pagado':'Pendiente'}</span>
           </div>
         </div>
-        <div class="order-money">
-          <span>Total: <b>$${fmt(t.total)}</b></span>
-          <span class="${saldoClass}">${t.saldo>0.009 ? 'Debe $'+fmt(t.saldo) : 'Liquidado'}</span>
-        </div>
+        ${restringido?'':(()=>{
+          const t = calcTotales(o);
+          const saldoClass = t.saldo > 0.009 ? 'saldo-pos' : 'saldo-ok';
+          return `<div class="order-money">
+            <span>Total: <b>$${fmt(t.total)}</b></span>
+            <span class="${saldoClass}">${t.saldo>0.009 ? 'Debe $'+fmt(t.saldo) : 'Liquidado'}</span>
+          </div>`;
+        })()}
+        ${restringido && o.estatusPago==='pendiente' && Number(o.saldoPendiente)>0.009
+          ? `<div class="employee-balance">Saldo pendiente: <strong>$${fmt(o.saldoPendiente)}</strong></div>`
+          : ''}
         <div class="order-edit-hint">Toca para editar →</div>
       </div>
     `;
   }).join('');
+}
+
+function pedidoEmpleadoRestringido(order){
+  return currentRole==='empleado' && (
+    Boolean(editingId) || state.orders.some(existing=>existing.id===order.id)
+  );
 }
 
 function escapeHtml(str){
@@ -935,6 +1015,7 @@ function nuevoPedidoVacio(){
     creado: new Date().toISOString(),
     cliente: {nombre:'', whatsapp:'', correo:''},
     fechaEntrega:'',
+    atendidoPor:'',
     productos:[{desc:'', cantidad:1, precio:0}],
     ivaAplica:false,
     anticipo:0,
@@ -950,6 +1031,7 @@ function nuevoPedidoVacio(){
   };
 }
 
+const ATENDIDO_POR_OPCIONES = ['Cristian', 'Anael'];
 let draftOrder = null;
 
 function abrirNuevo(){
@@ -962,8 +1044,12 @@ function abrirNuevo(){
 }
 
 function normalizarPedido(o){
+  if(!o.cliente) o.cliente = {nombre:'', whatsapp:'', correo:''};
+  if(o.cliente.nombre===undefined) o.cliente.nombre = '';
+  if(o.cliente.correo===undefined) o.cliente.correo = '';
   if(!o.facturacion) o.facturacion = {razonSocial:'', rfc:'', regimenFiscal:'', nombreComercial:'', calle:'', numero:'', colonia:'', codigoPostal:'', municipio:'', estado:''};
   if(!o.estatusPago) o.estatusPago = 'pendiente';
+  if(o.atendidoPor===undefined) o.atendidoPor = '';
   if(o.metodoPago===undefined) o.metodoPago = '';
   if(o.domicilioEntrega===undefined) o.domicilioEntrega = '';
   if(o.cliente.whatsapp===undefined) o.cliente.whatsapp = o.cliente.telefono || '';
@@ -1060,47 +1146,66 @@ function renderForm(){
   const t = calcTotales(o);
   const body = document.getElementById('drawerBody');
   const soloLectura = currentRole==='empleado' && Boolean(editingId);
+  const restringido = pedidoEmpleadoRestringido(o);
   const roAttr = soloLectura ? 'disabled' : '';
 
-  const f = o.facturacion;
+  const f = o.facturacion || {};
+  const mostrarFacturacion = Object.values(f).some(valor=>String(valor||'').trim());
 
   body.innerHTML = `
-    <div class="section-title">Cliente</div>
-    <label>Nombre</label>
-    <input id="f_nombre" list="clientes-nombres" value="${escapeHtml(o.cliente.nombre)}" placeholder="Nombre del cliente" ${roAttr}>
-    <datalist id="clientes-nombres">${opcionesClientesRegistrados('nombre')}</datalist>
-    <label>WhatsApp</label>
-    <input id="f_wa" list="clientes-telefonos" value="${escapeHtml(o.cliente.whatsapp)}" placeholder="246 000 0000" ${roAttr}>
-    <datalist id="clientes-telefonos">${opcionesClientesRegistrados('whatsapp')}</datalist>
-    <label>Correo (opcional)</label>
-    <input id="f_correo" value="${escapeHtml(o.cliente.correo)}" placeholder="correo@ejemplo.com" ${roAttr}>
-    <label>Fecha de entrega</label>
-    <input id="f_fecha" type="date" value="${o.fechaEntrega}" ${roAttr}>
-    <label>Domicilio de entrega (opcional)</label>
-    <textarea id="f_domicilioEntrega" rows="2" placeholder="Dirección donde se entregará el pedido" ${roAttr}>${escapeHtml(o.domicilioEntrega)}</textarea>
+    ${restringido ? '' : `
+      <div class="section-title">Cliente</div>
+      <label>Nombre</label>
+      <input id="f_nombre" list="clientes-nombres" value="${escapeHtml(o.cliente?.nombre||'')}" placeholder="Nombre del cliente" ${roAttr}>
+      <datalist id="clientes-nombres">${opcionesClientesRegistrados('nombre')}</datalist>
+      <label>WhatsApp</label>
+      <input id="f_wa" list="clientes-telefonos" value="${escapeHtml(o.cliente?.whatsapp||'')}" placeholder="246 000 0000" ${roAttr}>
+      <datalist id="clientes-telefonos">${opcionesClientesRegistrados('whatsapp')}</datalist>
+      <label>Correo (opcional)</label>
+      <input id="f_correo" value="${escapeHtml(o.cliente?.correo||'')}" placeholder="correo@ejemplo.com" ${roAttr}>
+      <label>Fecha de entrega</label>
+      <input id="f_fecha" type="date" value="${o.fechaEntrega||''}" ${roAttr}>
+      <label>Atendido por *</label>
+      ${currentRole==='empleado' ? `
+        <select id="f_atendidoPor" ${roAttr}>
+          <option value="">Selecciona…</option>
+          ${ATENDIDO_POR_OPCIONES.map(n=>`<option value="${n}" ${o.atendidoPor===n?'selected':''}>${n}</option>`).join('')}
+        </select>` : `
+        <input id="f_atendidoPor" value="${escapeHtml(o.atendidoPor||'')}" placeholder="Nombre de quien atendió" ${roAttr}>`}
+      <label>Domicilio de entrega (opcional)</label>
+      <textarea id="f_domicilioEntrega" rows="2" placeholder="Dirección donde se entregará el pedido" ${roAttr}>${escapeHtml(o.domicilioEntrega||'')}</textarea>
+    `}
 
     <div class="section-title">Productos</div>
     <div id="prodsCont"></div>
     <button class="add-prod" id="btnAddProd" ${roAttr}>+ Agregar producto</button>
+    ${restringido && o.estatusPago==='pendiente' && Number(o.saldoPendiente)>0.009
+      ? `<div class="employee-balance">Saldo pendiente: <strong>$${fmt(o.saldoPendiente)}</strong></div>`
+      : ''}
+    ${restringido ? `
+      <label for="f_notasEmpleado">Notas internas (opcional)</label>
+      <textarea id="f_notasEmpleado" rows="3" disabled>${escapeHtml(o.notas||'')}</textarea>
+    ` : ''}
 
-    <div class="section-title">Cobro</div>
-    <div class="checkbox-line">
-      <input type="checkbox" id="f_iva" ${o.ivaAplica?'checked':''} ${roAttr}>
-      <label style="margin:0;">Aplicar IVA (16%)</label>
-    </div>
-    <label>Método de pago (opcional)</label>
-    <select id="f_metodoPago" ${roAttr}>
-      <option value="">Sin especificar</option>
-      <option value="Efectivo" ${o.metodoPago==='Efectivo'?'selected':''}>Efectivo</option>
-      <option value="Transferencia" ${o.metodoPago==='Transferencia'?'selected':''}>Transferencia</option>
-      <option value="Tarjeta" ${o.metodoPago==='Tarjeta'?'selected':''}>Tarjeta</option>
-      <option value="Depósito" ${o.metodoPago==='Depósito'?'selected':''}>Depósito</option>
-      <option value="Otro" ${o.metodoPago==='Otro'?'selected':''}>Otro</option>
-    </select>
-    <label>Anticipo recibido</label>
-    <input id="f_anticipo" type="number" step="0.01" value="${o.anticipo}" ${roAttr}>
-
-    <div class="totales" id="totalesBox"></div>
+    ${restringido ? '<div id="totalesBox" hidden></div>' : `
+      <div class="section-title">Cobro</div>
+      <div class="checkbox-line">
+        <input type="checkbox" id="f_iva" ${o.ivaAplica?'checked':''} ${roAttr}>
+        <label style="margin:0;">Aplicar IVA (16%)</label>
+      </div>
+      <label>Método de pago (opcional)</label>
+      <select id="f_metodoPago" ${roAttr}>
+        <option value="">Sin especificar</option>
+        <option value="Efectivo" ${o.metodoPago==='Efectivo'?'selected':''}>Efectivo</option>
+        <option value="Transferencia" ${o.metodoPago==='Transferencia'?'selected':''}>Transferencia</option>
+        <option value="Tarjeta" ${o.metodoPago==='Tarjeta'?'selected':''}>Tarjeta</option>
+        <option value="Depósito" ${o.metodoPago==='Depósito'?'selected':''}>Depósito</option>
+        <option value="Otro" ${o.metodoPago==='Otro'?'selected':''}>Otro</option>
+      </select>
+      <label>Anticipo recibido</label>
+      <input id="f_anticipo" type="number" step="0.01" value="${o.anticipo}" ${roAttr}>
+      <div class="totales" id="totalesBox"></div>
+    `}
 
     <div class="section-title">Estatus del pedido</div>
     <div class="status-actions" id="statusActions"></div>
@@ -1108,41 +1213,52 @@ function renderForm(){
     <div class="section-title">Estatus del pago</div>
     <div class="status-actions" id="paymentStatusActions"></div>
 
-    <div class="section-title">Datos de facturación (opcional)</div>
-    <label>Razón social</label>
-    <input id="fc_razonSocial" value="${escapeHtml(f.razonSocial)}" placeholder="Razón social" ${roAttr}>
-    <div class="row2">
-      <div><label>RFC</label><input id="fc_rfc" value="${escapeHtml(f.rfc)}" placeholder="RFC" ${roAttr}></div>
-      <div><label>Nombre comercial</label><input id="fc_nombreComercial" value="${escapeHtml(f.nombreComercial)}" placeholder="Nombre comercial" ${roAttr}></div>
-    </div>
-    <label>Régimen fiscal</label>
-    <input id="fc_regimenFiscal" value="${escapeHtml(f.regimenFiscal)}" placeholder="Ej. Régimen simplificado" ${roAttr}>
-    <label>Calle</label>
-    <input id="fc_calle" value="${escapeHtml(f.calle)}" placeholder="Calle" ${roAttr}>
-    <div class="row2">
-      <div><label>Número</label><input id="fc_numero" value="${escapeHtml(f.numero)}" placeholder="Número" ${roAttr}></div>
-      <div><label>Colonia</label><input id="fc_colonia" value="${escapeHtml(f.colonia)}" placeholder="Colonia" ${roAttr}></div>
-    </div>
-    <div class="row2">
-      <div><label>Código postal</label><input id="fc_codigoPostal" value="${escapeHtml(f.codigoPostal)}" placeholder="C.P." ${roAttr}></div>
-      <div><label>Municipio</label><input id="fc_municipio" value="${escapeHtml(f.municipio)}" placeholder="Municipio" ${roAttr}></div>
-    </div>
-    <label>Estado</label>
-    <input id="fc_estado" value="${escapeHtml(f.estado)}" placeholder="Estado" ${roAttr}>
-
-    <label>Notas internas (opcional)</label>
-    <textarea id="f_notas" rows="2" placeholder="Detalles, colores, medidas..." ${roAttr}>${escapeHtml(o.notas)}</textarea>
+    ${restringido ? '' : `
+      <div class="section-title">
+        <label class="billing-toggle" for="f_facturacion">
+          <input type="checkbox" id="f_facturacion" ${mostrarFacturacion?'checked':''} ${roAttr}>
+          Datos de facturación (opcional)
+        </label>
+      </div>
+      <div id="facturacionCampos" ${mostrarFacturacion?'':'hidden'}>
+        <label>Razón social</label>
+        <input id="fc_razonSocial" value="${escapeHtml(f.razonSocial)}" placeholder="Razón social" ${roAttr}>
+        <div class="row2">
+          <div><label>RFC</label><input id="fc_rfc" value="${escapeHtml(f.rfc)}" placeholder="RFC" ${roAttr}></div>
+          <div><label>Nombre comercial</label><input id="fc_nombreComercial" value="${escapeHtml(f.nombreComercial)}" placeholder="Nombre comercial" ${roAttr}></div>
+        </div>
+        <label>Régimen fiscal</label>
+        <input id="fc_regimenFiscal" value="${escapeHtml(f.regimenFiscal)}" placeholder="Ej. Régimen simplificado" ${roAttr}>
+        <label>Calle</label>
+        <input id="fc_calle" value="${escapeHtml(f.calle)}" placeholder="Calle" ${roAttr}>
+        <div class="row2">
+          <div><label>Número</label><input id="fc_numero" value="${escapeHtml(f.numero)}" placeholder="Número" ${roAttr}></div>
+          <div><label>Colonia</label><input id="fc_colonia" value="${escapeHtml(f.colonia)}" placeholder="Colonia" ${roAttr}></div>
+        </div>
+        <div class="row2">
+          <div><label>Código postal</label><input id="fc_codigoPostal" value="${escapeHtml(f.codigoPostal)}" placeholder="C.P." ${roAttr}></div>
+          <div><label>Municipio</label><input id="fc_municipio" value="${escapeHtml(f.municipio)}" placeholder="Municipio" ${roAttr}></div>
+        </div>
+        <label>Estado</label>
+        <input id="fc_estado" value="${escapeHtml(f.estado)}" placeholder="Estado" ${roAttr}>
+      </div>
+      <label>Notas internas (opcional)</label>
+      <textarea id="f_notas" rows="2" placeholder="Detalles, colores, medidas..." ${roAttr}>${escapeHtml(o.notas)}</textarea>
+    `}
 
     <div class="drawer-actions">
       <button class="btn btn-primary" id="btnGuardar">${editingId?'Guardar cambios':(currentRole==='empleado'?'Crear pedido':'Guardar pedido')}</button>
     </div>
-    <div class="drawer-actions">
-      <button class="btn btn-teal" id="btnJPG">Descargar nota (JPG)</button>
-      <button class="btn btn-secondary" id="btnPDF">Descargar nota (PDF)</button>
-    </div>
-    <div class="drawer-actions">
-      <button class="btn btn-wa" id="btnWA">Abrir WhatsApp del cliente</button>
-    </div>
+    ${restringido ? '' : `
+      <div class="drawer-actions">
+        <button class="btn btn-teal" id="btnJPG">Descargar nota (JPG)</button>
+        <button class="btn btn-secondary" id="btnPDF">Descargar nota (PDF)</button>
+      </div>
+      <div class="drawer-actions">
+        <button class="btn btn-wa" id="btnWA">Abrir WhatsApp del cliente</button>
+        <button class="btn btn-cotizacion" id="btnCotizacion">Generar cotización</button>
+      </div>
+    `}
     ${editingId && currentRole==='admin' ? `<div class="drawer-actions"><button class="btn btn-secondary" id="btnEliminar" style="color:#C0392B;">Eliminar pedido</button></div>` : ''}
     ${currentRole==='empleado' ? `<div style="font-size:11.5px;color:var(--muted);margin-top:10px;">Puedes crear pedidos y actualizar sus estatus. Al marcar un pago como pagado, solo el administrador podrá cambiarlo.</div>` : ''}
   `;
@@ -1157,13 +1273,19 @@ function renderForm(){
     renderProductos(); renderTotales();
   });
   document.getElementById('btnGuardar').addEventListener('click', guardarDesdeForm);
-  document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
-  document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
-  document.getElementById('btnWA').addEventListener('click', abrirWhatsapp);
-  document.getElementById('f_nombre').addEventListener('change', ()=>autocompletarDatosCliente('nombre'));
-  document.getElementById('f_wa').addEventListener('change', ()=>autocompletarDatosCliente('whatsapp'));
-  document.getElementById('f_iva').addEventListener('change', e=>{draftOrder.ivaAplica=e.target.checked; renderTotales();});
-  document.getElementById('f_anticipo').addEventListener('input', e=>{draftOrder.anticipo=e.target.value; renderTotales();});
+  if(!restringido){
+    document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
+    document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
+    document.getElementById('btnWA').addEventListener('click', abrirWhatsapp);
+    document.getElementById('btnCotizacion').addEventListener('click', irACotizacion);
+    document.getElementById('f_nombre').addEventListener('change', ()=>autocompletarDatosCliente('nombre'));
+    document.getElementById('f_wa').addEventListener('change', ()=>autocompletarDatosCliente('whatsapp'));
+    document.getElementById('f_facturacion').addEventListener('change', e=>{
+      document.getElementById('facturacionCampos').hidden = !e.target.checked;
+    });
+    document.getElementById('f_iva').addEventListener('change', e=>{draftOrder.ivaAplica=e.target.checked; renderTotales();});
+    document.getElementById('f_anticipo').addEventListener('input', e=>{draftOrder.anticipo=e.target.value; renderTotales();});
+  }
 
   const btnEl = document.getElementById('btnEliminar');
   if(btnEl){
@@ -1187,16 +1309,19 @@ function renderForm(){
 function renderProductos(){
   const cont = document.getElementById('prodsCont');
   const roAttr = (currentRole==='empleado' && editingId) ? 'disabled' : '';
+  const mostrarMontos = !pedidoEmpleadoRestringido(draftOrder);
   cont.innerHTML = draftOrder.productos.map((p,i)=>`
     <div class="prod-row" data-i="${i}">
       <div class="desc-line">
         <label style="margin-top:0;">Descripción</label>
         <input class="p-desc" value="${escapeHtml(p.desc)}" placeholder="Ej. Lona 2x1m full color" ${roAttr}>
       </div>
-      <div class="row2">
+      <div class="row2" style="${mostrarMontos?'':'grid-template-columns:1fr'}">
         <div><label>Cantidad</label><input class="p-cant" type="number" min="0" step="1" value="${p.cantidad}" ${roAttr}></div>
-        <div><label>Precio unitario</label><input class="p-precio" type="number" min="0" step="0.01" value="${p.precio}" ${roAttr}></div>
-        <div><label>Subtotal</label><input class="p-sub" value="$${fmt((Number(p.cantidad)||0)*(Number(p.precio)||0))}" disabled></div>
+        ${mostrarMontos?`
+          <div><label>Precio unitario</label><input class="p-precio" type="number" min="0" step="0.01" value="${p.precio}" ${roAttr}></div>
+          <div><label>Subtotal</label><input class="p-sub" value="$${fmt((Number(p.cantidad)||0)*(Number(p.precio)||0))}" disabled></div>
+        `:''}
       </div>
       ${draftOrder.productos.length>1 && !roAttr ? `<button class="prod-remove">Quitar producto</button>` : ''}
     </div>
@@ -1210,11 +1335,12 @@ function renderProductos(){
       actualizarSubtotalFila(i);
       renderTotales();
     });
-    row.querySelector('.p-precio').addEventListener('input', e=>{
-      draftOrder.productos[i].precio=e.target.value;
-      actualizarSubtotalFila(i);
-      renderTotales();
-    });
+    const precio = row.querySelector('.p-precio');
+    if(precio) precio.addEventListener('input', e=>{
+        draftOrder.productos[i].precio=e.target.value;
+        actualizarSubtotalFila(i);
+        renderTotales();
+      });
     const rm = row.querySelector('.prod-remove');
     if(rm) rm.addEventListener('click', ()=>{draftOrder.productos.splice(i,1); renderProductos(); renderTotales();});
   });
@@ -1283,6 +1409,7 @@ function leerFormAlDraft(){
   draftOrder.cliente.whatsapp = document.getElementById('f_wa').value.trim();
   draftOrder.cliente.correo = document.getElementById('f_correo').value.trim();
   draftOrder.fechaEntrega = document.getElementById('f_fecha').value;
+  draftOrder.atendidoPor = document.getElementById('f_atendidoPor').value.trim();
   draftOrder.domicilioEntrega = document.getElementById('f_domicilioEntrega').value.trim();
   draftOrder.metodoPago = document.getElementById('f_metodoPago').value;
   draftOrder.notas = document.getElementById('f_notas').value.trim();
@@ -1321,6 +1448,14 @@ async function guardarDesdeForm(){
     if(!esEmpleado || esNuevo) leerFormAlDraft();
     if((!esEmpleado || esNuevo) && !draftOrder.cliente.nombre){
       await avisar('Falta el nombre del cliente.');
+      return;
+    }
+    if((!esEmpleado || esNuevo) && !draftOrder.atendidoPor){
+      await avisar('Indica quién atendió el pedido ("Atendido por").');
+      return;
+    }
+    if(esEmpleado && !ATENDIDO_POR_OPCIONES.includes(draftOrder.atendidoPor)){
+      await avisar('Selecciona una opción válida en "Atendido por".');
       return;
     }
     const pedidoGuardado = await guardarPedidoEnSupabase(draftOrder, esNuevo);
@@ -1366,6 +1501,7 @@ function construirNotaHTML(o){
         <div><b>Cliente</b>${escapeHtml(o.cliente.nombre)}</div>
         <div><b>WhatsApp</b>${escapeHtml(o.cliente.whatsapp||'-')}</div>
         <div><b>Entrega</b>${o.fechaEntrega||'Por confirmar'}</div>
+        ${o.atendidoPor ? `<div><b>Atendido por</b>${escapeHtml(o.atendidoPor)}</div>` : ''}
       </div>
       <table class="nota-tabla">
         <thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">P. Unit.</th><th class="num">Importe</th></tr></thead>
@@ -1385,7 +1521,11 @@ function construirNotaHTML(o){
       <div class="nota-redes">
         <span class="nota-redes-item">
           <img class="nota-redes-icon" src="%C3%ADcono%20wsp.png" alt="">
-          <span>+522461357712</span>
+          <span class="nota-redes-tels">
+            <span>+522461357712</span>
+            <span>+52 2461038361</span>
+            <span>+52 2465209427</span>
+          </span>
         </span>
         <span class="nota-redes-item">
           <img class="nota-redes-icon nota-redes-icon-instagram" src="%C3%ADcono%20insta.png" alt="">
@@ -1395,7 +1535,16 @@ function construirNotaHTML(o){
           <img class="nota-redes-icon" src="%C3%ADcono%20fb.webp" alt="">
           <span>YA VISTE</span>
         </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20correo.png" alt="">
+          <span>yavistepublicidad@gmail.com</span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20ubicaci%C3%B3n.webp" alt="">
+          <span>Calle Morelos Pte. #46 Sta. Ana Chiautempan Centro, Tlaxcala.</span>
+        </span>
       </div>
+      <div class="nota-consulta">Consulta tu pedido en nuestro sitio web <span class="nota-link">https://yaviste.vercel.app/</span> -&gt; Pedidos -&gt; Ver mi pedido e ingresa el número de pedido que enviamos a tu WhatsApp</div>
     </div>
   `;
 }
@@ -1411,7 +1560,7 @@ async function generarNota(tipo){
 
   let canvas;
   try{
-    const imagenesRedes = Array.from(cont.querySelectorAll('.nota-redes-icon'));
+    const imagenesRedes = Array.from(cont.querySelectorAll('img.nota-redes-icon'));
     await Promise.all(imagenesRedes.map(imagen=>imagen.decode()));
     canvas = await html2canvas(cont, {
       scale:2,
@@ -1450,7 +1599,7 @@ async function generarNota(tipo){
     const notaBounds = cont.getBoundingClientRect();
     const escalaCanvas = canvas.width / notaBounds.width;
     const cortesSeguros = Array.from(cont.querySelectorAll(
-      '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes'
+      '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes, .nota-consulta'
     )).map(elemento=>Math.round((elemento.getBoundingClientRect().bottom - notaBounds.top) * escalaCanvas))
       .filter(corte=>corte>0 && corte<=canvas.height)
       .sort((a,b)=>a-b);
@@ -1461,6 +1610,14 @@ async function generarNota(tipo){
     const inicioEncabezado = encabezadoTabla
       ? Math.round((encabezadoTabla.getBoundingClientRect().top - notaBounds.top) * escalaCanvas)
       : 0;
+
+    const enlaces = Array.from(cont.querySelectorAll('.nota-link')).flatMap(el=>
+      Array.from(el.getClientRects()).map(r=>({
+        x:(r.left - notaBounds.left) * escalaCanvas,
+        w:r.width * escalaCanvas,
+        top:(r.top - notaBounds.top) * escalaCanvas,
+        bottom:(r.bottom - notaBounds.top) * escalaCanvas
+      })));
 
     let inicio = 0;
     let numeroPagina = 0;
@@ -1486,11 +1643,33 @@ async function generarNota(tipo){
       if(numeroPagina > 0) pdf.addPage();
       const altoEnMm = altoPagina / pixelsPerMm;
       pdf.addImage(paginaCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', pageMargin, pageMargin, printableWidth, altoEnMm);
+      const desplazamiento = repetirEncabezado ? altoEncabezado : 0;
+      enlaces.filter(e=>e.top>=inicio && e.bottom<=fin).forEach(e=>{
+        pdf.link(
+          pageMargin + e.x / pixelsPerMm,
+          pageMargin + (e.top - inicio + desplazamiento) / pixelsPerMm,
+          e.w / pixelsPerMm,
+          (e.bottom - e.top) / pixelsPerMm,
+          {url:'https://yaviste.vercel.app/'}
+        );
+      });
       inicio = fin;
       numeroPagina++;
     }
     pdf.save(`pedido-${folioStr}.pdf`);
   }
+}
+
+function irACotizacion(){
+  leerFormAlDraft();
+  sessionStorage.setItem('yaviste-cotizacion-borrador', JSON.stringify({
+    cliente: draftOrder.cliente,
+    atendidoPor: draftOrder.atendidoPor,
+    domicilioEntrega: draftOrder.domicilioEntrega,
+    productos: draftOrder.productos,
+    ivaAplica: draftOrder.ivaAplica
+  }));
+  window.location.href = 'Cotizaciones.html';
 }
 
 function abrirWhatsapp(){

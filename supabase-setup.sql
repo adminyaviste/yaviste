@@ -123,9 +123,81 @@ on public.staff_roles for select to authenticated
 using (user_id = auth.uid());
 
 drop policy if exists "Staff can read orders" on public.pedidos;
-create policy "Staff can read orders"
+drop policy if exists "Admins can read orders" on public.pedidos;
+create policy "Admins can read orders"
 on public.pedidos for select to authenticated
-using (public.current_staff_role() in ('admin', 'empleado'));
+using (public.current_staff_role() = 'admin');
+
+drop function if exists public.pedidos_para_empleado();
+drop function if exists public.actualizar_estatus_pedido(text, text, text);
+drop function if exists public.datos_pedido_para_empleado(jsonb, text, text);
+drop function if exists public.datos_pedido_para_empleado(jsonb, text);
+drop function if exists public.datos_pedido_para_empleado(jsonb);
+create function public.datos_pedido_para_empleado(pedido_datos jsonb, pedido_estatus_pago text)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_set(
+    (
+      jsonb_set(
+        pedido_datos,
+        '{productos}',
+        coalesce((
+          select jsonb_agg(producto.value - 'precio')
+          from jsonb_array_elements(coalesce(pedido_datos -> 'productos', '[]'::jsonb)) as producto(value)
+        ), '[]'::jsonb)
+      )
+      - 'cliente'
+      - 'domicilioEntrega'
+      - 'facturacion'
+      - 'anticipo'
+      - 'metodoPago'
+      - 'ivaAplica'
+    ),
+    '{saldoPendiente}',
+    case
+      when pedido_estatus_pago = 'pendiente' then to_jsonb(greatest(
+        0,
+        round(
+          coalesce((
+            select sum(
+              coalesce(nullif(producto.value ->> 'cantidad', '')::numeric, 0)
+              * coalesce(nullif(producto.value ->> 'precio', '')::numeric, 0)
+            )
+            from jsonb_array_elements(coalesce(pedido_datos -> 'productos', '[]'::jsonb)) as producto(value)
+          ), 0)
+          * (1 + case when coalesce((pedido_datos ->> 'ivaAplica')::boolean, false) then 0.16 else 0 end)
+          - coalesce(nullif(pedido_datos ->> 'anticipo', '')::numeric, 0),
+          2
+        )
+      ))
+      else 'null'::jsonb
+    end,
+    true
+  )
+$$;
+
+revoke all on function public.datos_pedido_para_empleado(jsonb, text) from public, anon, authenticated;
+
+drop function if exists public.pedidos_para_empleado();
+create function public.pedidos_para_empleado()
+returns table (id text, folio bigint, creado timestamptz, estatus text, estatus_pago text, datos jsonb)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select pedido.id, pedido.folio, pedido.creado, pedido.estatus, pedido.estatus_pago,
+         public.datos_pedido_para_empleado(pedido.datos, pedido.estatus_pago)
+  from public.pedidos as pedido
+  where public.current_staff_role() = 'empleado'
+  order by pedido.folio desc
+$$;
+
+revoke all on function public.pedidos_para_empleado() from public, anon;
+grant execute on function public.pedidos_para_empleado() to authenticated;
 
 drop policy if exists "Customers can read their order summaries" on public.pedidos_cliente;
 create policy "Customers can read their order summaries"
@@ -144,7 +216,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select pedido.folio, pedido.fecha_entrega, pedido.estatus, pedido.estatus_pago, pedido.total, pedido.anticipo
+  select pedido.folio, pedido.fecha_entrega, pedido.estatus, pedido.estatus_pago,
+         case when public.current_staff_role() = 'empleado' then null else pedido.total end,
+         case when public.current_staff_role() = 'empleado' then null else pedido.anticipo end
   from public.pedidos_cliente as pedido
   where pedido.folio = folio_buscado
   limit 1
@@ -218,7 +292,7 @@ begin
     'creado', pedido_actualizado.creado,
     'estatus', pedido_actualizado.estatus,
     'estatus_pago', pedido_actualizado.estatus_pago,
-    'datos', pedido_actualizado.datos
+    'datos', public.datos_pedido_para_empleado(pedido_actualizado.datos, pedido_actualizado.estatus_pago)
   );
 end;
 $$;

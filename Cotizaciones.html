@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ya Viste — Cotizaciones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1A1A1A;--paper:#F7F5EF;--paper-2:#FFFFFF;--line:#E3DFD3;
+    --cyan:#00AEEF;--magenta:#E6007E;--yellow:#FFC400;
+    --teal:#0B4F6C;--teal-dark:#083A50;--muted:#78736A;--danger:#C0392B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  header.app{
+    background:var(--teal-dark);color:#fff;padding:18px 20px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    position:sticky;top:0;z-index:20;
+  }
+  header.app .brand{display:flex;align-items:center;gap:10px;}
+  header.app .eye{
+    width:30px;height:30px;border-radius:50%;
+    background:conic-gradient(var(--cyan),var(--magenta),var(--yellow),var(--cyan));
+    flex-shrink:0;position:relative;
+  }
+  header.app .eye::after{content:"";position:absolute;inset:9px;background:var(--teal-dark);border-radius:50%;}
+  header.app h1{font-family:'Archivo Black',sans-serif;font-size:17px;margin:0;letter-spacing:0.3px;}
+  header.app .sub{font-size:11px;color:#B7CBD3;margin-top:1px;}
+  .btn{
+    border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13.5px;
+    cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    transition:transform .1s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--magenta);color:#fff;}
+  .btn-secondary{background:#fff;color:var(--teal-dark);border:1.5px solid var(--line);}
+  .btn-ghost{background:transparent;color:#fff;padding:8px 10px;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  main{max-width:640px;margin:0 auto;padding:20px 16px 80px;}
+  .card{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:18px;}
+  label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;margin-top:14px;}
+  input,select,textarea{
+    width:100%;padding:10px 11px;border:1.5px solid var(--line);border-radius:8px;
+    font-family:inherit;font-size:14px;background:#fff;color:var(--ink);
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .section-title{font-family:'Archivo Black';font-size:13px;margin-top:22px;margin-bottom:8px;color:var(--teal-dark);}
+  .section-title:first-child{margin-top:0;}
+  .prod-row{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;}
+  .prod-row label{margin-top:0;}
+  .prod-row .desc-line{margin-bottom:8px;}
+  .prod-remove{background:none;border:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;margin-top:6px;padding:0;}
+  .add-prod{
+    width:100%;border:1.5px dashed var(--line);background:transparent;color:var(--teal-dark);
+    padding:10px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;
+  }
+  .totales{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;}
+  .totales .linea{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:6px;}
+  .totales .linea.total{font-family:'Archivo Black';font-size:16px;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px;margin-bottom:0;}
+  .checkbox-line{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13.5px;font-weight:500;}
+  .checkbox-line input{width:auto;}
+  .actions{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;}
+  .actions .btn{flex:1;}
+  .aviso{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;}
+  .aviso .btn{margin-top:14px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(20,20,20,0.45);z-index:80;display:none;}
+  .overlay.show{display:block;}
+  .modal-box{
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;
+    padding:20px;width:min(340px,90%);z-index:90;display:none;box-shadow:0 12px 32px rgba(0,0,0,0.25);
+  }
+  .modal-box.show{display:block;}
+  .modal-msg{font-size:14px;line-height:1.5;white-space:pre-line;}
+  .modal-actions{display:flex;gap:8px;margin-top:16px;}
+  .modal-actions .btn{flex:1;}
+
+  /* Hidden printable note */
+  #nota-render{
+    position:fixed;left:-9999px;top:0;width:600px;background:#fff;
+    font-family:'Inter',sans-serif;color:#1A1A1A;padding:0;
+  }
+  .nota-inner{padding:28px;}
+  .nota-head{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    border-bottom:3px solid #1A1A1A;padding-bottom:14px;margin-bottom:16px;
+  }
+  .nota-brand{font-family:'Archivo Black';font-size:22px;}
+  .nota-brand .sub{font-family:'Inter';font-size:10.5px;font-weight:600;color:#78736A;letter-spacing:0.5px;}
+  .nota-folio-box{text-align:right;}
+  .nota-folio-box .t{font-size:10.5px;font-weight:700;color:#78736A;letter-spacing:1px;}
+  .nota-folio-box .f{font-family:'Archivo Black';font-size:18px;color:#E6007E;}
+  .nota-folio-box .d{font-size:11px;color:#78736A;}
+  .nota-cliente{font-size:12.5px;line-height:1.7;margin-bottom:16px;}
+  .nota-cliente b{display:inline-block;width:88px;color:#78736A;font-weight:600;}
+  table.nota-tabla{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;}
+  table.nota-tabla th{text-align:left;background:#1A1A1A;color:#fff;padding:7px 8px;font-size:10.5px;}
+  table.nota-tabla td{padding:7px 8px;border-bottom:1px solid #E3DFD3;}
+  table.nota-tabla td.num,table.nota-tabla th.num{text-align:right;}
+  .nota-totales{margin-left:auto;width:230px;font-size:12.5px;}
+  .nota-totales .l{display:flex;justify-content:space-between;padding:3px 0;}
+  .nota-totales .l.total{font-family:'Archivo Black';font-size:15px;border-top:2px solid #1A1A1A;margin-top:4px;padding-top:6px;}
+  .nota-foot{
+    margin-top:18px;padding-top:12px;border-top:1px dashed #E3DFD3;
+    font-size:11px;color:#78736A;display:flex;justify-content:space-between;
+  }
+  .nota-redes{
+    display:flex;justify-content:center;align-items:center;gap:18px;
+    margin-top:12px;padding-top:10px;border-top:1px solid #E3DFD3;
+    color:#1A1A1A;font-size:10.5px;
+  }
+  .nota-redes-item{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+  .nota-redes-icon{display:block;width:18px;height:18px;flex-shrink:0;object-fit:contain;}
+  .nota-redes-icon-instagram{width:32px;}
+  .nota-redes{flex-wrap:wrap;row-gap:8px;}
+  .nota-redes-tels{display:flex;flex-direction:column;line-height:1.35;}
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="brand">
+    <div class="eye"></div>
+    <div>
+      <h1>YA VISTE</h1>
+      <div class="sub">Cotizaciones · Chiautempan, Tlaxcala</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="Pedidos%202.html?volver=1" class="btn btn-ghost">← Pedidos</a>
+  </div>
+</header>
+
+<main>
+  <div id="cargando" class="aviso">Verificando acceso…</div>
+  <div id="sinAcceso" class="aviso" hidden>
+    Esta página es solo para el personal. Inicia sesión desde Pedidos para generar cotizaciones.
+    <div><a href="Pedidos%202.html" class="btn btn-primary">Ir a Pedidos</a></div>
+  </div>
+  <div id="formulario" class="card" hidden></div>
+</main>
+
+<div id="nota-render"></div>
+
+<div class="overlay" id="modalOverlay"></div>
+<div id="modalBox" class="modal-box">
+  <div id="modalMsg" class="modal-msg"></div>
+  <div class="modal-actions"><button class="btn btn-primary" id="modalOk">Aceptar</button></div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script>
+const ATENDIDO_POR_OPCIONES = ['Cristian', 'Anael'];
+const BORRADOR_KEY = 'yaviste-cotizacion-borrador';
+const SUPABASE_CONFIG = window.YAVISTE_SUPABASE_CONFIG || {};
+const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
+  && !SUPABASE_CONFIG.url.includes('YOUR_PROJECT_REF')
+  && !SUPABASE_CONFIG.anonKey.includes('YOUR_SUPABASE_')
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  : null;
+
+let currentRole = null;
+let cot = null;
+
+function avisar(mensaje){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    const ok = document.getElementById('modalOk');
+    document.getElementById('modalMsg').textContent = mensaje;
+    overlay.classList.add('show');
+    box.classList.add('show');
+    ok.onclick = ()=>{
+      overlay.classList.remove('show');
+      box.classList.remove('show');
+      resolve();
+    };
+  });
+}
+
+function fmt(n){
+  return (Number(n)||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function crearFolioAleatorio(){
+  const v = window.crypto.getRandomValues(new Uint32Array(1))[0];
+  return 100000 + (v % 900000);
+}
+
+function calcTotales(c){
+  const subtotal = c.productos.reduce((a,p)=>a + (Number(p.cantidad)||0)*(Number(p.precio)||0), 0);
+  const iva = c.ivaAplica ? subtotal*0.16 : 0;
+  return {subtotal, iva, total: subtotal + iva};
+}
+
+function cotizacionNueva(){
+  const base = {
+    folio: crearFolioAleatorio(),
+    creado: new Date().toISOString(),
+    cliente: {nombre:'', whatsapp:'', correo:''},
+    atendidoPor:'',
+    domicilioEntrega:'',
+    productos:[{desc:'', cantidad:1, precio:0}],
+    ivaAplica:false
+  };
+  try{
+    const guardado = JSON.parse(sessionStorage.getItem(BORRADOR_KEY) || 'null');
+    sessionStorage.removeItem(BORRADOR_KEY);
+    if(guardado){
+      base.cliente = {...base.cliente, ...(guardado.cliente||{})};
+      base.atendidoPor = guardado.atendidoPor || '';
+      base.domicilioEntrega = guardado.domicilioEntrega || '';
+      base.ivaAplica = Boolean(guardado.ivaAplica);
+      if(Array.isArray(guardado.productos) && guardado.productos.length) base.productos = guardado.productos;
+    }
+  }catch(e){ console.warn('No se pudo leer el borrador', e); }
+  if(currentRole==='empleado' && !ATENDIDO_POR_OPCIONES.includes(base.atendidoPor)) base.atendidoPor = '';
+  return base;
+}
+
+async function verificarAcceso(){
+  if(!supabaseClient) return null;
+  const {data:{session}} = await supabaseClient.auth.getSession();
+  if(!session) return null;
+  const {data:staff, error} = await supabaseClient
+    .from('staff_roles').select('role').eq('user_id', session.user.id).maybeSingle();
+  if(error || !staff) return null;
+  return staff.role;
+}
+
+function renderForm(){
+  const o = cot;
+  const esEmpleado = currentRole==='empleado';
+  const form = document.getElementById('formulario');
+  form.innerHTML = `
+    <div class="section-title">Cotización — #COT-${o.folio}</div>
+    <div class="section-title" style="margin-top:14px;">Cliente</div>
+    <label style="margin-top:0;">Nombre</label>
+    <input id="f_nombre" value="${escapeHtml(o.cliente.nombre)}" placeholder="Nombre del cliente">
+    <label>WhatsApp</label>
+    <input id="f_wa" value="${escapeHtml(o.cliente.whatsapp)}" placeholder="246 000 0000">
+    <label>Correo (opcional)</label>
+    <input id="f_correo" value="${escapeHtml(o.cliente.correo)}" placeholder="correo@ejemplo.com">
+    <label>Atendido por *</label>
+    ${esEmpleado ? `
+      <select id="f_atendidoPor">
+        <option value="">Selecciona…</option>
+        ${ATENDIDO_POR_OPCIONES.map(n=>`<option value="${n}" ${o.atendidoPor===n?'selected':''}>${n}</option>`).join('')}
+      </select>` : `
+      <input id="f_atendidoPor" value="${escapeHtml(o.atendidoPor)}" placeholder="Nombre de quien atendió">`}
+    <label>Domicilio de entrega (opcional)</label>
+    <textarea id="f_domicilioEntrega" rows="2" placeholder="Dirección donde se entregará el pedido">${escapeHtml(o.domicilioEntrega)}</textarea>
+
+    <div class="section-title">Productos</div>
+    <div id="prodsCont"></div>
+    <button class="add-prod" id="btnAddProd">+ Agregar producto</button>
+    <label class="checkbox-line"><input type="checkbox" id="f_iva" ${o.ivaAplica?'checked':''}> Aplicar IVA (16%)</label>
+    <div class="totales" id="totales"></div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btnPDF">Generar cotización (PDF)</button>
+    </div>
+  `;
+  renderProductos();
+  renderTotales();
+  document.getElementById('btnAddProd').addEventListener('click', ()=>{
+    leerForm();
+    cot.productos.push({desc:'', cantidad:1, precio:0});
+    renderProductos(); renderTotales();
+  });
+  document.getElementById('f_iva').addEventListener('change', e=>{cot.ivaAplica = e.target.checked; renderTotales();});
+  document.getElementById('btnPDF').addEventListener('click', generarPDF);
+}
+
+function renderProductos(){
+  const cont = document.getElementById('prodsCont');
+  cont.innerHTML = cot.productos.map((p,i)=>`
+    <div class="prod-row" data-i="${i}">
+      <div class="desc-line">
+        <label>Descripción</label>
+        <input class="p-desc" value="${escapeHtml(p.desc)}" placeholder="Ej. Lona 2x1m full color">
+      </div>
+      <div class="row2">
+        <div><label>Cantidad</label><input class="p-cant" type="number" min="0" step="1" value="${escapeHtml(p.cantidad)}"></div>
+        <div><label>Precio unitario</label><input class="p-precio" type="number" min="0" step="0.01" value="${escapeHtml(p.precio)}"></div>
+        <div><label>Subtotal</label><input class="p-sub" value="$${fmt((Number(p.cantidad)||0)*(Number(p.precio)||0))}" disabled></div>
+      </div>
+      ${cot.productos.length>1 ? `<button class="prod-remove">Quitar producto</button>` : ''}
+    </div>
+  `).join('');
+  cont.querySelectorAll('.prod-row').forEach(row=>{
+    const i = Number(row.dataset.i);
+    row.querySelector('.p-desc').addEventListener('input', e=>{cot.productos[i].desc = e.target.value;});
+    const actualizar = ()=>{
+      row.querySelector('.p-sub').value = '$' + fmt((Number(cot.productos[i].cantidad)||0)*(Number(cot.productos[i].precio)||0));
+      renderTotales();
+    };
+    row.querySelector('.p-cant').addEventListener('input', e=>{cot.productos[i].cantidad = e.target.value; actualizar();});
+    row.querySelector('.p-precio').addEventListener('input', e=>{cot.productos[i].precio = e.target.value; actualizar();});
+    const rm = row.querySelector('.prod-remove');
+    if(rm) rm.addEventListener('click', ()=>{
+      leerForm();
+      cot.productos.splice(i,1);
+      renderProductos(); renderTotales();
+    });
+  });
+}
+
+function renderTotales(){
+  const t = calcTotales(cot);
+  document.getElementById('totales').innerHTML = `
+    <div class="linea"><span>Subtotal</span><span>$${fmt(t.subtotal)}</span></div>
+    ${cot.ivaAplica ? `<div class="linea"><span>IVA (16%)</span><span>$${fmt(t.iva)}</span></div>` : ''}
+    <div class="linea total"><span>Total</span><span>$${fmt(t.total)}</span></div>
+  `;
+}
+
+function leerForm(){
+  cot.cliente.nombre = document.getElementById('f_nombre').value.trim();
+  cot.cliente.whatsapp = document.getElementById('f_wa').value.trim();
+  cot.cliente.correo = document.getElementById('f_correo').value.trim();
+  cot.atendidoPor = document.getElementById('f_atendidoPor').value.trim();
+  cot.domicilioEntrega = document.getElementById('f_domicilioEntrega').value.trim();
+}
+
+function construirNotaHTML(o){
+  const t = calcTotales(o);
+  const filas = o.productos.map(p=>`
+    <tr>
+      <td>${escapeHtml(p.desc||'-')}</td>
+      <td class="num">${escapeHtml(p.cantidad)}</td>
+      <td class="num">$${fmt(p.precio)}</td>
+      <td class="num">$${fmt((Number(p.cantidad)||0)*(Number(p.precio)||0))}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="nota-inner">
+      <div class="nota-head">
+        <div>
+          <div class="nota-brand">YA VISTE</div>
+          <div class="sub">MEDIOS IMPRESOS Y AUDIOVISUALES</div>
+        </div>
+        <div class="nota-folio-box">
+          <div class="t">COTIZACIÓN</div>
+          <div class="f">#COT-${o.folio}</div>
+          <div class="d">${new Date(o.creado).toLocaleDateString('es-MX')}</div>
+        </div>
+      </div>
+      <div class="nota-cliente">
+        <div><b>Cliente</b>${escapeHtml(o.cliente.nombre)}</div>
+        <div><b>WhatsApp</b>${escapeHtml(o.cliente.whatsapp||'-')}</div>
+        ${o.cliente.correo ? `<div><b>Correo</b>${escapeHtml(o.cliente.correo)}</div>` : ''}
+        ${o.domicilioEntrega ? `<div><b>Domicilio</b>${escapeHtml(o.domicilioEntrega)}</div>` : ''}
+        ${o.atendidoPor ? `<div><b>Atendido por</b>${escapeHtml(o.atendidoPor)}</div>` : ''}
+      </div>
+      <table class="nota-tabla">
+        <thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">P. Unit.</th><th class="num">Importe</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="nota-totales">
+        <div class="l"><span>Subtotal</span><span>$${fmt(t.subtotal)}</span></div>
+        ${o.ivaAplica ? `<div class="l"><span>IVA</span><span>$${fmt(t.iva)}</span></div>` : ''}
+        <div class="l total"><span>Total</span><span>$${fmt(t.total)}</span></div>
+      </div>
+      <div class="nota-foot">
+        <span>Chiautempan, Tlaxcala</span>
+        <span>Gracias por su preferencia</span>
+      </div>
+      <div class="nota-redes">
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20wsp.png" alt="">
+          <span class="nota-redes-tels">
+            <span>+522461357712</span>
+            <span>+52 2461038361</span>
+            <span>+52 2465209427</span>
+          </span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon nota-redes-icon-instagram" src="%C3%ADcono%20insta.png" alt="">
+          <span>@yaviste1</span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20fb.webp" alt="">
+          <span>YA VISTE</span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20correo.png" alt="">
+          <span>yavistepublicidad@gmail.com</span>
+        </span>
+        <span class="nota-redes-item">
+          <img class="nota-redes-icon" src="%C3%ADcono%20ubicaci%C3%B3n.webp" alt="">
+          <span>Calle Morelos Pte. #46 Sta. Ana Chiautempan Centro, Tlaxcala.</span>
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+async function generarPDF(){
+  leerForm();
+  if(!cot.cliente.nombre){
+    await avisar('Falta el nombre del cliente.');
+    return;
+  }
+  if(!cot.atendidoPor || (currentRole==='empleado' && !ATENDIDO_POR_OPCIONES.includes(cot.atendidoPor))){
+    await avisar('Indica quién atendió la cotización ("Atendido por").');
+    return;
+  }
+  if(!cot.productos.some(p=>String(p.desc||'').trim())){
+    await avisar('Agrega al menos un producto con descripción.');
+    return;
+  }
+
+  const cont = document.getElementById('nota-render');
+  cont.innerHTML = construirNotaHTML(cot);
+  const posicionOriginal = {left:cont.style.left, top:cont.style.top, visibility:cont.style.visibility};
+  cont.style.left = '0px';
+  cont.style.top = '0px';
+  cont.style.visibility = 'hidden';
+
+  let canvas;
+  try{
+    const imagenes = Array.from(cont.querySelectorAll('img.nota-redes-icon'));
+    await Promise.all(imagenes.map(imagen=>imagen.decode()));
+    canvas = await html2canvas(cont, {
+      scale:2,
+      backgroundColor:'#ffffff',
+      windowWidth:window.innerWidth,
+      windowHeight:Math.max(window.innerHeight, cont.scrollHeight),
+      scrollX:0,
+      scrollY:0,
+      onclone:clonedDocument=>{
+        const notaClonada = clonedDocument.getElementById('nota-render');
+        if(notaClonada) notaClonada.style.visibility = 'visible';
+      }
+    });
+  }finally{
+    cont.style.left = posicionOriginal.left;
+    cont.style.top = posicionOriginal.top;
+    cont.style.visibility = posicionOriginal.visibility;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({unit:'mm', format:'a4'});
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const pageMargin = 10;
+  const printableWidth = pageWidth - pageMargin * 2;
+  const printableHeight = pageHeight - pageMargin * 2;
+  const pixelsPerMm = canvas.width / printableWidth;
+  const maxPagePixels = Math.floor(printableHeight * pixelsPerMm);
+  const notaBounds = cont.getBoundingClientRect();
+  const escalaCanvas = canvas.width / notaBounds.width;
+  const cortesSeguros = Array.from(cont.querySelectorAll(
+    '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes'
+  )).map(el=>Math.round((el.getBoundingClientRect().bottom - notaBounds.top) * escalaCanvas))
+    .filter(corte=>corte>0 && corte<=canvas.height)
+    .sort((a,b)=>a-b);
+  const encabezadoTabla = cont.querySelector('.nota-tabla thead');
+  const altoEncabezado = encabezadoTabla
+    ? Math.ceil(encabezadoTabla.getBoundingClientRect().height * escalaCanvas) : 0;
+  const inicioEncabezado = encabezadoTabla
+    ? Math.round((encabezadoTabla.getBoundingClientRect().top - notaBounds.top) * escalaCanvas) : 0;
+
+  let inicio = 0;
+  let numeroPagina = 0;
+  while(inicio < canvas.height){
+    const repetirEncabezado = numeroPagina > 0 && altoEncabezado > 0;
+    const altoDisponible = maxPagePixels - (repetirEncabezado ? altoEncabezado : 0);
+    const limite = Math.min(canvas.height, inicio + altoDisponible);
+    const cortesPagina = cortesSeguros.filter(corte=>corte>inicio && corte<=limite);
+    const fin = limite===canvas.height ? canvas.height : (cortesPagina.pop() || limite);
+    const altoContenido = fin - inicio;
+    const altoPagina = altoContenido + (repetirEncabezado ? altoEncabezado : 0);
+    const paginaCanvas = document.createElement('canvas');
+    paginaCanvas.width = canvas.width;
+    paginaCanvas.height = altoPagina;
+    const contexto = paginaCanvas.getContext('2d');
+    if(repetirEncabezado){
+      contexto.drawImage(canvas, 0, inicioEncabezado, canvas.width, altoEncabezado, 0, 0, canvas.width, altoEncabezado);
+    }
+    contexto.drawImage(canvas, 0, inicio, canvas.width, altoContenido, 0,
+      repetirEncabezado ? altoEncabezado : 0, canvas.width, altoContenido);
+    if(numeroPagina > 0) pdf.addPage();
+    pdf.addImage(paginaCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', pageMargin, pageMargin, printableWidth, altoPagina / pixelsPerMm);
+    inicio = fin;
+    numeroPagina++;
+  }
+  pdf.save(`cotizacion-${cot.folio}.pdf`);
+}
+
+(async function iniciar(){
+  try{
+    currentRole = await verificarAcceso();
+  }catch(e){
+    console.error(e);
+    currentRole = null;
+  }
+  document.getElementById('cargando').hidden = true;
+  if(currentRole!=='admin' && currentRole!=='empleado'){
+    document.getElementById('sinAcceso').hidden = false;
+    return;
+  }
+  cot = cotizacionNueva();
+  document.getElementById('formulario').hidden = false;
+  renderForm();
+})();
+</script>
+</body>
+</html>
