@@ -39,6 +39,15 @@
   .productos{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}
   .productos th,.productos td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;}
   .productos th:last-child,.productos td:last-child{text-align:right;white-space:nowrap;}
+  dialog{border:none;border-radius:12px;padding:20px;max-width:360px;width:90%;font-family:'Inter',sans-serif;}
+  dialog::backdrop{background:rgba(0,0,0,.45);}
+  dialog h2{margin:0 0 6px;font-size:16px;color:var(--teal-dark);}
+  dialog p{margin:0 0 12px;font-size:13px;color:var(--muted);}
+  dialog label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;}
+  dialog input{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font:inherit;}
+  .dialogo-acciones{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .dialogo-acciones .btn{color:var(--teal-dark);border-color:var(--line);}
+  .dialogo-acciones .btn-pedido{color:#fff;border:none;}
   @media(max-width:560px){header{align-items:flex-start;flex-direction:column}.resumen{grid-template-columns:1fr 1fr}.cabecera{align-items:flex-start}}
 </style>
 </head>
@@ -57,6 +66,20 @@
   <div id="estado" class="aviso" role="status">Cargando cotizaciones…</div>
   <section id="lista" class="lista" aria-label="Cotizaciones guardadas" hidden></section>
 </main>
+<dialog id="dialogoEntrega">
+  <form method="dialog" id="formEntrega">
+    <h2>Generar pedido</h2>
+    <p id="dialogoEntregaTexto"></p>
+    <label for="entregaFecha">Fecha de entrega *</label>
+    <input id="entregaFecha" type="date" required>
+    <label for="entregaHora">Hora de entrega *</label>
+    <input id="entregaHora" type="time" required>
+    <div class="dialogo-acciones">
+      <button type="button" class="btn" id="entregaCancelar">Cancelar</button>
+      <button type="submit" class="btn btn-pedido">Generar pedido</button>
+    </div>
+  </form>
+</dialog>
 <script src="supabase-config.js"></script>
 <script>
 const config = window.YAVISTE_SUPABASE_CONFIG || {};
@@ -101,13 +124,40 @@ async function folioDisponible(){
   throw new Error('No se pudo asignar un folio libre. Intenta de nuevo.');
 }
 
-function pedidoDesdeCotizacion(datos, folio){
+function pedirEntrega(cotizacion){
+  const dialogo = document.getElementById('dialogoEntrega');
+  const fecha = document.getElementById('entregaFecha');
+  const hora = document.getElementById('entregaHora');
+  document.getElementById('dialogoEntregaTexto').textContent =
+    `Indica la fecha y hora de entrega para la cotización #COT-${cotizacion.folio}.`;
+  fecha.value = '';
+  hora.value = '';
+  return new Promise(resolve=>{
+    const form = document.getElementById('formEntrega');
+    const cancelar = document.getElementById('entregaCancelar');
+    let resultado = null;
+    const alEnviar = ()=>{ resultado = {fechaEntrega:fecha.value, horaEntrega:hora.value}; };
+    const alCancelar = ()=>dialogo.close();
+    const alCerrar = ()=>{
+      form.removeEventListener('submit',alEnviar);
+      cancelar.removeEventListener('click',alCancelar);
+      resolve(resultado);
+    };
+    form.addEventListener('submit',alEnviar);
+    cancelar.addEventListener('click',alCancelar);
+    dialogo.addEventListener('close',alCerrar,{once:true});
+    dialogo.showModal();
+  });
+}
+
+function pedidoDesdeCotizacion(datos, folio, entrega){
   return {
     id:'o'+Date.now(),
     folio,
     creado:new Date().toISOString(),
     cliente:{nombre:'',whatsapp:'',correo:'',...(datos.cliente||{})},
-    fechaEntrega:'',
+    fechaEntrega:entrega.fechaEntrega,
+    horaEntrega:entrega.horaEntrega,
     atendidoPor:datos.atendidoPor || '',
     productos:(Array.isArray(datos.productos) ? datos.productos : []).map(p=>({desc:p.desc,cantidad:p.cantidad,precio:p.precio})),
     ivaAplica:Boolean(datos.ivaAplica),
@@ -127,11 +177,12 @@ function pedidoDesdeCotizacion(datos, folio){
 
 async function generarPedido(cotizacion,boton){
   const {datos} = cotizacion;
-  if(!window.confirm(`¿Generar un pedido a partir de la cotización #COT-${cotizacion.folio}?`)) return;
+  const entrega = await pedirEntrega(cotizacion);
+  if(!entrega) return;
   boton.disabled = true;
   try{
     const folio = await folioDisponible();
-    const {id,folio:_folio,creado,estatus,estatusPago,...datosPedido} = pedidoDesdeCotizacion(datos,folio);
+    const {id,folio:_folio,creado,estatus,estatusPago,...datosPedido} = pedidoDesdeCotizacion(datos,folio,entrega);
     const {error} = await supabaseClient.from('pedidos').insert({
       id,folio,creado,estatus,estatus_pago:estatusPago,datos:datosPedido
     });

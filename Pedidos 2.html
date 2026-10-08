@@ -534,7 +534,8 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button class="btn btn-primary" id="btnNuevo">+ Nuevo pedido/cotización</button>
+    <button class="btn btn-primary" id="btnNuevo">+ Nuevo pedido</button>
+    <button class="btn btn-cotizacion" id="btnNuevaCotizacion">Generar cotización</button>
     <button class="btn btn-secondary" id="btnExportar">Exportar a Excel</button>
     <button class="btn btn-ghost" id="btnSalir" style="color:#fff;">Cerrar sesión</button>
     <a href="index.html" class="btn btn-ghost" style="color:#fff;">← Sitio</a>
@@ -545,7 +546,7 @@
   <div class="summary-row" id="resumen"></div>
 
   <div class="toolbar">
-    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre de cliente" autocomplete="off">
+    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre o folio" autocomplete="off">
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
       <button class="chip" data-f="pendiente">En diseño</button>
@@ -960,7 +961,13 @@ function fechaHoyLocal(){
 
 function pasaFiltro(o){
   const busqueda = normalizarBusqueda(document.getElementById('buscarCliente').value);
-  if(busqueda && !normalizarBusqueda(o.cliente?.nombre).includes(busqueda)) return false;
+  const busquedaFolio = busqueda.replace(/^#/, '');
+  const folio = String(o.folio ?? '');
+  const coincideNombre = normalizarBusqueda(o.cliente?.nombre).includes(busqueda);
+  const coincideFolio = busquedaFolio && (
+    folio.includes(busquedaFolio) || folio.padStart(4,'0').includes(busquedaFolio)
+  );
+  if(busqueda && !coincideNombre && !coincideFolio) return false;
   if(currentFilter==='todos') return true;
   if(currentFilter==='urgente') return o.tipoPedido === 'urgente' || o.fechaEntrega === fechaHoyLocal();
   if(currentFilter==='debe') return calcTotales(o).saldo > 0.009;
@@ -1217,6 +1224,7 @@ function closeDrawer(){
 document.getElementById('btnCerrar').addEventListener('click', closeDrawer);
 document.getElementById('overlay').addEventListener('click', closeDrawer);
 document.getElementById('btnNuevo').addEventListener('click', abrirNuevo);
+document.getElementById('btnNuevaCotizacion').addEventListener('click', iniciarCotizacion);
 
 function renderForm(){
   const o = draftOrder;
@@ -1341,7 +1349,6 @@ function renderForm(){
       </div>
       <div class="drawer-actions">
         <button class="btn btn-wa" id="btnWA">Abrir WhatsApp del cliente</button>
-        <button class="btn btn-cotizacion" id="btnCotizacion">Generar cotización</button>
       </div>
     `}
     ${editingId && currentRole==='admin' ? `<div class="drawer-actions"><button class="btn btn-secondary" id="btnEliminar" style="color:#C0392B;">Eliminar pedido</button></div>` : ''}
@@ -1363,7 +1370,6 @@ function renderForm(){
     document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
     document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
     document.getElementById('btnWA').addEventListener('click', abrirWhatsapp);
-    document.getElementById('btnCotizacion').addEventListener('click', irACotizacion);
     document.getElementById('f_nombre').addEventListener('change', ()=>autocompletarDatosCliente('nombre'));
     document.getElementById('f_wa').addEventListener('change', ()=>autocompletarDatosCliente('whatsapp'));
     document.getElementById('f_facturacion').addEventListener('change', e=>{
@@ -1776,6 +1782,15 @@ function irACotizacion(){
     productos: draftOrder.productos,
     ivaAplica: draftOrder.ivaAplica
   }));
+  window.location.href = 'Cotizaciones.html';
+}
+
+function iniciarCotizacion(){
+  if(document.getElementById('drawer').classList.contains('show') && draftOrder && !pedidoEmpleadoRestringido(draftOrder)){
+    irACotizacion();
+    return;
+  }
+  sessionStorage.removeItem('yaviste-cotizacion-borrador');
   window.location.href = 'Cotizaciones.html';
 }
 
