@@ -113,6 +113,7 @@
     display:flex;
     gap:6px;
     flex-wrap:wrap;
+    flex:1 1 100%;
   }
   .search-cliente{max-width:280px;}
   .chip{
@@ -130,6 +131,16 @@
     color:var(--teal-dark);
     background:#E8F1F4;
   }
+  .entrega-timer{margin-top:8px;font-size:12.5px;font-weight:700;color:#1E8E3E;font-variant-numeric:tabular-nums;}
+  .entrega-timer.pronto{color:#C79100;}
+  .entrega-timer.critico,.entrega-timer.vencido{color:#C62828;}
+  .chip[data-f="debe"]{margin-left:auto;}
+  .chip[data-f="pendiente"],.chip[data-f="proceso"],.chip[data-f="pago_en_proceso"]{border-color:#E0A800;color:#8A6500;background:#FFF6D1;}
+  .chip[data-f="pendiente"].active,.chip[data-f="proceso"].active,.chip[data-f="pago_en_proceso"].active{background:#F5C518;border-color:#E0A800;color:#3B2F00;}
+  .chip[data-f="terminado"],.chip[data-f="pagado"]{border-color:#1E8E3E;color:#1E8E3E;background:#E6F4EA;}
+  .chip[data-f="terminado"].active,.chip[data-f="pagado"].active{background:#1E8E3E;border-color:#1E8E3E;color:#fff;}
+  .chip[data-f="urgente"],.chip[data-f="debe"]{border-color:#C62828;color:#C62828;background:#FDECEC;}
+  .chip[data-f="urgente"].active,.chip[data-f="debe"].active{background:#C62828;border-color:#C62828;color:#fff;}
 
   .summary-row{
     display:grid;
@@ -182,6 +193,10 @@
   .pill.proceso{background:#DFF3FC;color:#0287BD;}
   .pill.terminado{background:#DEF4E8;color:#1E7A46;}
   .pill.pago-pendiente{background:#FFF2CC;color:#785B00;}
+  #btnExportar{background:#1E8E3E;border-color:#1E8E3E;color:#fff;}
+  #btnExportar:hover{background:#17712F;border-color:#17712F;}
+  .pill.urgente{background:#FDE0E0;color:#B3261E;}
+  .pill.pago-en-proceso{background:#DDEFFB;color:#0B4F6C;}
   .pill.pagado{background:#DEF4E8;color:#1E7A46;}
   .order-statuses{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
   .order-money{
@@ -404,6 +419,7 @@
     margin-top:12px;padding-top:10px;border-top:1px solid #E3DFD3;
     color:#1A1A1A;font-size:10.5px;
   }
+  .nota-horario{margin-top:10px;text-align:center;font-size:10.5px;font-weight:600;color:#4D4A44;line-height:1.4;}
   .nota-redes-item{display:flex;align-items:center;gap:5px;white-space:nowrap;}
   .nota-redes-icon{display:block;width:18px;height:18px;flex-shrink:0;object-fit:contain;}
   .nota-redes-icon-instagram{width:32px;}
@@ -518,9 +534,9 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button class="btn btn-primary" id="btnNuevo">+ Nuevo pedido</button>
+    <button class="btn btn-primary" id="btnNuevo">+ Nuevo pedido/cotización</button>
     <button class="btn btn-secondary" id="btnExportar">Exportar a Excel</button>
-    <button class="btn btn-ghost" id="btnSalir" style="color:#fff;">Salir</button>
+    <button class="btn btn-ghost" id="btnSalir" style="color:#fff;">Cerrar sesión</button>
     <a href="index.html" class="btn btn-ghost" style="color:#fff;">← Sitio</a>
   </div>
 </header>
@@ -532,10 +548,13 @@
     <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre de cliente" autocomplete="off">
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
-      <button class="chip" data-f="pendiente">Pendiente</button>
+      <button class="chip" data-f="pendiente">En diseño</button>
       <button class="chip" data-f="proceso">En proceso</button>
+      <button class="chip" data-f="urgente">Urgente</button>
       <button class="chip" data-f="terminado">Terminado</button>
       <button class="chip" data-f="debe">Saldo pendiente</button>
+      <button class="chip" data-f="pago_en_proceso">Pago en proceso</button>
+      <button class="chip" data-f="pagado">Pagados</button>
     </div>
   </div>
 
@@ -584,9 +603,12 @@ const SUPABASE_CONFIG = window.YAVISTE_SUPABASE_CONFIG || {};
 const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
   && !SUPABASE_CONFIG.url.includes('YOUR_PROJECT_REF')
   && !SUPABASE_CONFIG.anonKey.includes('YOUR_SUPABASE_')
-  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey, {
+    auth:{persistSession:true, autoRefreshToken:true}
+  })
   : null;
 const LEGACY_STORAGE_KEY = 'yaviste-orders-v1';
+const ETIQUETAS_PAGO = {pendiente:'Pendiente', en_proceso:'Pago en proceso', pagado:'Pagado'};
 
 // ---------- Modal propio (prompt/alert/confirm nativos no funcionan en este sandbox) ----------
 function abrirModal({mensaje, conInput=false, tipoInput='text', soloOk=false}){
@@ -672,11 +694,9 @@ async function restaurarSesionPersonal(){
     console.error('No se pudo restaurar la sesión:', error);
   }
 }
-if(new URLSearchParams(window.location.search).get('volver') === '1') restaurarSesionPersonal();
+if(new URLSearchParams(window.location.search).get('consulta') !== '1') restaurarSesionPersonal();
 document.getElementById('btnVolverPortal').addEventListener('click', ()=>{
-  document.getElementById('consulta').style.display='none';
-  document.getElementById('portal').style.display='flex';
-  document.getElementById('consultaResultado').innerHTML='';
+  window.location.href='index.html';
 });
 document.getElementById('btnSalir').addEventListener('click', async ()=>{
   currentRole=null;
@@ -693,13 +713,17 @@ async function entrarDashboard(rol){
   document.getElementById('btnNuevo').style.display = 'inline-flex';
   document.getElementById('btnExportar').style.display = rol==='admin' ? 'inline-flex' : 'none';
   document.querySelector('#filtros [data-f="debe"]').style.display = rol==='admin' ? '' : 'none';
+  currentFilter = 'todos';
+  document.getElementById('buscarCliente').value = '';
+  document.querySelectorAll('#filtros .chip').forEach(c=>c.classList.toggle('active', c.dataset.f==='todos'));
+  document.querySelector('#filtros [data-f="pago_en_proceso"]').style.display = rol==='admin' ? '' : 'none';
+  document.querySelector('#filtros [data-f="pagado"]').style.display = rol==='admin' ? '' : 'none';
   try{
     await loadState();
   }catch(error){
     currentRole = null;
     document.getElementById('appRoot').style.display='none';
     document.getElementById('portal').style.display='flex';
-    await supabaseClient.auth.signOut();
     await avisar('No se pudieron cargar los pedidos de Supabase. ' + (error.message || ''));
   }
 }
@@ -711,7 +735,7 @@ function renderTarjetaEstado(pedido){
   const saldo = mostrarMontos ? (pedido.estatus_pago==='pagado' ? 0 : total-anticipo) : 0;
   const pasos = ['pendiente','proceso','terminado'];
   const idx = pasos.indexOf(pedido.estatus);
-  const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado — listo para recoger'}[pedido.estatus];
+  const estatusLabel = {pendiente:'En diseño', proceso:'En proceso', terminado:'Terminado — listo para recoger'}[pedido.estatus];
   return `
     <div class="estado-cliente">
       <div class="folio">Pedido #${String(pedido.folio).padStart(4,'0')}</div>
@@ -726,7 +750,7 @@ function renderTarjetaEstado(pedido){
         <div class="fila"><span>Total</span><b>$${fmt(total)}</b></div>
         <div class="fila"><span>Anticipo</span><b>$${fmt(anticipo)}</b></div>
       `:''}
-      <div class="fila"><span>Estatus de pago</span><b>${pedido.estatus_pago==='pagado'?'Pagado':'Pendiente'}</b></div>
+      <div class="fila"><span>Estatus de pago</span><b>${ETIQUETAS_PAGO[pedido.estatus_pago] || 'Pendiente'}</b></div>
       ${mostrarMontos?`<div class="fila"><span>${saldo>0.009?'Saldo pendiente':'Estatus de saldo'}</span><b>${saldo>0.009?'$'+fmt(saldo):'Liquidado'}</b></div>`:''}
     </div>
   `;
@@ -929,11 +953,19 @@ function normalizarBusqueda(texto){
   return String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 }
 
+function fechaHoyLocal(){
+  const h = new Date();
+  return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
+}
+
 function pasaFiltro(o){
   const busqueda = normalizarBusqueda(document.getElementById('buscarCliente').value);
   if(busqueda && !normalizarBusqueda(o.cliente?.nombre).includes(busqueda)) return false;
   if(currentFilter==='todos') return true;
+  if(currentFilter==='urgente') return o.tipoPedido === 'urgente' || o.fechaEntrega === fechaHoyLocal();
   if(currentFilter==='debe') return calcTotales(o).saldo > 0.009;
+  if(currentFilter==='pago_en_proceso') return o.estatusPago === 'en_proceso';
+  if(currentFilter==='pagado') return o.estatusPago === 'pagado';
   return o.estatus === currentFilter;
 }
 
@@ -952,7 +984,7 @@ function renderLista(){
 
   cont.innerHTML = items.map(o=>{
     const restringido = pedidoEmpleadoRestringido(o);
-    const estatusLabel = {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
+    const estatusLabel = {pendiente:'En diseño', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
     const detallesTrabajo = restringido
       ? `<div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
          <div class="order-meta">${(o.productos||[]).map(producto=>`${escapeHtml(producto.desc||'Sin descripción')} · Cantidad: ${escapeHtml(String(producto.cantidad??''))}`).join('<br>')}</div>`
@@ -965,11 +997,12 @@ function renderLista(){
             ${restringido
               ? detallesTrabajo
               : `<div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
-                 <div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}</div>`}
+                 <div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`}
           </div>
           <div class="order-statuses">
             <span class="pill ${o.estatus}">${estatusLabel}</span>
-            <span class="pill ${o.estatusPago==='pagado'?'pagado':'pago-pendiente'}">Pago: ${o.estatusPago==='pagado'?'Pagado':'Pendiente'}</span>
+            ${o.tipoPedido==='urgente' ? '<span class="pill urgente">Urgente</span>' : ''}
+            <span class="pill ${{pagado:'pagado', en_proceso:'pago-en-proceso'}[o.estatusPago] || 'pago-pendiente'}">Pago: ${ETIQUETAS_PAGO[o.estatusPago] || 'Pendiente'}</span>
           </div>
         </div>
         ${restringido?'':(()=>{
@@ -980,14 +1013,45 @@ function renderLista(){
             <span class="${saldoClass}">${t.saldo>0.009 ? 'Debe $'+fmt(t.saldo) : 'Liquidado'}</span>
           </div>`;
         })()}
-        ${restringido && o.estatusPago==='pendiente' && Number(o.saldoPendiente)>0.009
+        ${restringido && o.estatusPago!=='pagado' && Number(o.saldoPendiente)>0.009
           ? `<div class="employee-balance">Saldo pendiente: <strong>$${fmt(o.saldoPendiente)}</strong></div>`
+          : ''}
+        ${o.fechaEntrega && o.horaEntrega && o.estatus!=='terminado'
+          ? `<div class="entrega-timer" data-entrega="${escapeHtml(o.fechaEntrega)}T${escapeHtml(o.horaEntrega)}"></div>`
           : ''}
         <div class="order-edit-hint">Toca para editar →</div>
       </div>
     `;
   }).join('');
+  actualizarTemporizadores();
 }
+
+function formatoTiempo(ms){
+  const total = Math.floor(ms/1000);
+  const dias = Math.floor(total/86400);
+  const h = Math.floor((total%86400)/3600);
+  const m = Math.floor((total%3600)/60);
+  const s = total%60;
+  const hms = [h,m,s].map(n=>String(n).padStart(2,'0')).join(':');
+  return dias>0 ? `${dias}d ${hms}` : hms;
+}
+
+function actualizarTemporizadores(){
+  const ahora = Date.now();
+  document.querySelectorAll('.entrega-timer').forEach(el=>{
+    const objetivo = new Date(el.dataset.entrega).getTime();
+    if(Number.isNaN(objetivo)){ el.textContent = ''; return; }
+    const restante = objetivo - ahora;
+    if(restante <= 0){
+      el.textContent = '⏱ Vencido';
+      el.className = 'entrega-timer vencido';
+    }else{
+      el.textContent = `⏱ Faltan ${formatoTiempo(restante)}`;
+      el.className = 'entrega-timer' + (restante <= 3600000 ? ' critico' : restante < 86400000 ? ' pronto' : '');
+    }
+  });
+}
+setInterval(actualizarTemporizadores, 1000);
 
 function pedidoEmpleadoRestringido(order){
   return currentRole==='empleado' && (
@@ -1013,9 +1077,8 @@ document.getElementById('filtros').addEventListener('click', (e)=>{
 // ---------- Drawer / formulario ----------
 
 function crearFolioAleatorio(){
-  const valoresAleatorios = window.crypto.getRandomValues(new Uint32Array(2));
-  const numeroAleatorio = (valoresAleatorios[0] & 0x1fffff) * 4294967296 + valoresAleatorios[1];
-  return 1000000000 + (numeroAleatorio % 9000000000);
+  const valorAleatorio = window.crypto.getRandomValues(new Uint32Array(1))[0];
+  return 100000 + (valorAleatorio % 900000);
 }
 
 function nuevoPedidoVacio(){
@@ -1025,6 +1088,7 @@ function nuevoPedidoVacio(){
     creado: new Date().toISOString(),
     cliente: {nombre:'', whatsapp:'', correo:''},
     fechaEntrega:'',
+    horaEntrega:'',
     atendidoPor:'',
     productos:[{desc:'', cantidad:1, precio:0}],
     ivaAplica:false,
@@ -1033,6 +1097,7 @@ function nuevoPedidoVacio(){
     estatusPago:'pendiente',
     notas:'',
     metodoPago:'',
+    tipoPedido:'normal',
     domicilioEntrega:'',
     facturacion:{
       razonSocial:'', rfc:'', regimenFiscal:'', nombreComercial:'',
@@ -1061,6 +1126,8 @@ function normalizarPedido(o){
   if(!o.estatusPago) o.estatusPago = 'pendiente';
   if(o.atendidoPor===undefined) o.atendidoPor = '';
   if(o.metodoPago===undefined) o.metodoPago = '';
+  if(typeof o.horaEntrega !== 'string') o.horaEntrega = '';
+  if(!['normal','urgente'].includes(o.tipoPedido)) o.tipoPedido = 'normal';
   if(o.domicilioEntrega===undefined) o.domicilioEntrega = '';
   if(o.cliente.whatsapp===undefined) o.cliente.whatsapp = o.cliente.telefono || '';
   delete o.cliente.telefono;
@@ -1178,6 +1245,8 @@ function renderForm(){
       <input id="f_correo" value="${escapeHtml(o.cliente?.correo||'')}" placeholder="correo@ejemplo.com" ${roAttr}>
       <label>Fecha de entrega</label>
       <input id="f_fecha" type="date" value="${o.fechaEntrega||''}" ${roAttr}>
+      <label>Hora de entrega (opcional)</label>
+      <input id="f_horaEntrega" type="time" value="${escapeHtml(o.horaEntrega||'')}" ${roAttr}>
       <label>Atendido por *</label>
       ${currentRole==='empleado' ? `
         <select id="f_atendidoPor" ${roAttr}>
@@ -1192,7 +1261,7 @@ function renderForm(){
     <div class="section-title">Productos</div>
     <div id="prodsCont"></div>
     <button class="add-prod" id="btnAddProd" ${roAttr}>+ Agregar producto</button>
-    ${restringido && o.estatusPago==='pendiente' && Number(o.saldoPendiente)>0.009
+    ${restringido && o.estatusPago!=='pagado' && Number(o.saldoPendiente)>0.009
       ? `<div class="employee-balance">Saldo pendiente: <strong>$${fmt(o.saldoPendiente)}</strong></div>`
       : ''}
     ${restringido ? `
@@ -1225,6 +1294,9 @@ function renderForm(){
 
     <div class="section-title">Estatus del pago</div>
     <div class="status-actions" id="paymentStatusActions"></div>
+
+    <div class="section-title">Tipo de pedido</div>
+    <div class="status-actions" id="tipoPedidoActions"></div>
 
     ${restringido ? '' : `
       <div class="section-title">
@@ -1280,6 +1352,7 @@ function renderForm(){
   renderTotales();
   renderStatusActions();
   renderPaymentStatusActions();
+  renderTipoPedidoActions();
 
   document.getElementById('btnAddProd').addEventListener('click', ()=>{
     draftOrder.productos.push({desc:'',cantidad:1,precio:0});
@@ -1387,7 +1460,7 @@ function renderTotales(){
 
 function renderStatusActions(){
   const estados = [
-    {k:'pendiente', l:'Pendiente'},
+    {k:'pendiente', l:'En diseño'},
     {k:'proceso', l:'En proceso'},
     {k:'terminado', l:'Terminado'}
   ];
@@ -1402,8 +1475,9 @@ function renderStatusActions(){
 function renderPaymentStatusActions(){
   const bloqueado = currentRole==='empleado' && Boolean(editingId) && draftOrder.estatusPago==='pagado';
   const estadosPago = [
-    {k:'pendiente', l:'Pendiente'},
-    {k:'pagado', l:'Pagado'}
+    {k:'pendiente', l:ETIQUETAS_PAGO.pendiente},
+    {k:'en_proceso', l:ETIQUETAS_PAGO.en_proceso},
+    {k:'pagado', l:ETIQUETAS_PAGO.pagado}
   ];
   document.getElementById('paymentStatusActions').innerHTML = estadosPago.map(e=>`
     <button class="chip ${draftOrder.estatusPago===e.k?'active':''}" data-payment-status="${e.k}" ${bloqueado?'disabled':''}>${e.l}</button>
@@ -1417,11 +1491,26 @@ function renderPaymentStatusActions(){
   });
 }
 
+function renderTipoPedidoActions(){
+  const bloqueado = currentRole==='empleado' && Boolean(editingId);
+  const tipos = [{k:'normal', l:'Normal'}, {k:'urgente', l:'Urgente'}];
+  document.getElementById('tipoPedidoActions').innerHTML = tipos.map(t=>`
+    <button class="chip ${draftOrder.tipoPedido===t.k?'active':''}" data-tipo-pedido="${t.k}" ${bloqueado?'disabled':''}>${t.l}</button>
+  `).join('');
+  document.querySelectorAll('#tipoPedidoActions .chip').forEach(button=>{
+    button.addEventListener('click', ()=>{
+      draftOrder.tipoPedido = button.dataset.tipoPedido;
+      renderTipoPedidoActions();
+    });
+  });
+}
+
 function leerFormAlDraft(){
   draftOrder.cliente.nombre = document.getElementById('f_nombre').value.trim();
   draftOrder.cliente.whatsapp = document.getElementById('f_wa').value.trim();
   draftOrder.cliente.correo = document.getElementById('f_correo').value.trim();
   draftOrder.fechaEntrega = document.getElementById('f_fecha').value;
+  draftOrder.horaEntrega = document.getElementById('f_horaEntrega').value;
   draftOrder.atendidoPor = document.getElementById('f_atendidoPor').value.trim();
   draftOrder.domicilioEntrega = document.getElementById('f_domicilioEntrega').value.trim();
   draftOrder.metodoPago = document.getElementById('f_metodoPago').value;
@@ -1467,7 +1556,7 @@ async function guardarDesdeForm(){
       await avisar('Indica quién atendió el pedido ("Atendido por").');
       return;
     }
-    if(esEmpleado && !ATENDIDO_POR_OPCIONES.includes(draftOrder.atendidoPor)){
+    if(esEmpleado && esNuevo && !ATENDIDO_POR_OPCIONES.includes(draftOrder.atendidoPor)){
       await avisar('Selecciona una opción válida en "Atendido por".');
       return;
     }
@@ -1557,6 +1646,7 @@ function construirNotaHTML(o){
           <span>Calle Morelos Pte. #46 Sta. Ana Chiautempan Centro, Tlaxcala.</span>
         </span>
       </div>
+      <div class="nota-horario">Horario de atención: Lunes a viernes de 10:00 AM a 06:30 PM, sábados y domingos no laboramos.</div>
       <div class="nota-consulta">Consulta tu pedido en nuestro sitio web <span class="nota-link">https://yaviste.vercel.app/</span> -&gt; Pedidos -&gt; Ver mi pedido e ingresa el número de pedido que enviamos a tu WhatsApp</div>
     </div>
   `;
@@ -1564,6 +1654,10 @@ function construirNotaHTML(o){
 
 async function generarNota(tipo){
   leerFormAlDraft();
+  if(currentRole==='admin' && !draftOrder.atendidoPor){
+    await avisar('Indica quién atendió el pedido ("Atendido por").');
+    return;
+  }
   const cont = document.getElementById('nota-render');
   cont.innerHTML = construirNotaHTML(draftOrder);
   const posicionOriginal = {left:cont.style.left, top:cont.style.top, visibility:cont.style.visibility};
@@ -1612,7 +1706,7 @@ async function generarNota(tipo){
     const notaBounds = cont.getBoundingClientRect();
     const escalaCanvas = canvas.width / notaBounds.width;
     const cortesSeguros = Array.from(cont.querySelectorAll(
-      '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes, .nota-consulta'
+      '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes, .nota-horario, .nota-consulta'
     )).map(elemento=>Math.round((elemento.getBoundingClientRect().bottom - notaBounds.top) * escalaCanvas))
       .filter(corte=>corte>0 && corte<=canvas.height)
       .sort((a,b)=>a-b);
@@ -1721,7 +1815,7 @@ function exportarExcel(){
       'Fecha de entrega': o.fechaEntrega,
       'Domicilio de entrega': o.domicilioEntrega||'',
       'Método de pago': o.metodoPago||'',
-      'Estatus': {pendiente:'Pendiente', proceso:'En proceso', terminado:'Terminado'}[o.estatus],
+      'Estatus': {pendiente:'En diseño', proceso:'En proceso', terminado:'Terminado'}[o.estatus],
       'Subtotal': Number(t.subtotal.toFixed(2)),
       'IVA': Number(t.iva.toFixed(2)),
       'Total': Number(t.total.toFixed(2)),

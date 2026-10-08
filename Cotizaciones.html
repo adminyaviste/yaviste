@@ -41,6 +41,7 @@
   .btn-primary{background:var(--magenta);color:#fff;}
   .btn-secondary{background:#fff;color:var(--teal-dark);border:1.5px solid var(--line);}
   .btn-ghost{background:transparent;color:#fff;padding:8px 10px;}
+  .btn-ver-cotizaciones{background:var(--yellow);color:var(--ink);font-weight:700;box-shadow:0 2px 8px rgba(255,196,0,0.45);}
   .btn:disabled{opacity:0.4;cursor:not-allowed;}
   main{max-width:640px;margin:0 auto;padding:20px 16px 80px;}
   .card{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:18px;}
@@ -116,6 +117,7 @@
     margin-top:12px;padding-top:10px;border-top:1px solid #E3DFD3;
     color:#1A1A1A;font-size:10.5px;
   }
+  .nota-horario{margin-top:10px;text-align:center;font-size:10.5px;font-weight:600;color:#4D4A44;line-height:1.4;}
   .nota-redes-item{display:flex;align-items:center;gap:5px;white-space:nowrap;}
   .nota-redes-icon{display:block;width:18px;height:18px;flex-shrink:0;object-fit:contain;}
   .nota-redes-icon-instagram{width:32px;}
@@ -134,6 +136,7 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="cotizaciones-guardadas.html" class="btn btn-ver-cotizaciones">Ver cotizaciones</a>
     <a href="Pedidos%202.html?volver=1" class="btn btn-ghost">← Pedidos</a>
   </div>
 </header>
@@ -163,7 +166,9 @@ const SUPABASE_CONFIG = window.YAVISTE_SUPABASE_CONFIG || {};
 const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
   && !SUPABASE_CONFIG.url.includes('YOUR_PROJECT_REF')
   && !SUPABASE_CONFIG.anonKey.includes('YOUR_SUPABASE_')
-  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey, {
+    auth:{persistSession:true, autoRefreshToken:true}
+  })
   : null;
 
 let currentRole = null;
@@ -204,6 +209,7 @@ function calcTotales(c){
 
 function cotizacionNueva(){
   const base = {
+    id: Array.from(window.crypto.getRandomValues(new Uint8Array(16)), byte=>byte.toString(16).padStart(2,'0')).join(''),
     folio: crearFolioAleatorio(),
     creado: new Date().toISOString(),
     cliente: {nombre:'', whatsapp:'', correo:''},
@@ -402,6 +408,7 @@ function construirNotaHTML(o){
           <span>Calle Morelos Pte. #46 Sta. Ana Chiautempan Centro, Tlaxcala.</span>
         </span>
       </div>
+      <div class="nota-horario">Horario de atención: Lunes a viernes de 10:00 AM a 06:30 PM, sábados y domingos no laboramos.</div>
     </div>
   `;
 }
@@ -421,82 +428,99 @@ async function generarPDF(){
     return;
   }
 
-  const cont = document.getElementById('nota-render');
-  cont.innerHTML = construirNotaHTML(cot);
-  const posicionOriginal = {left:cont.style.left, top:cont.style.top, visibility:cont.style.visibility};
-  cont.style.left = '0px';
-  cont.style.top = '0px';
-  cont.style.visibility = 'hidden';
-
-  let canvas;
+  const boton = document.getElementById('btnPDF');
+  boton.disabled = true;
   try{
-    const imagenes = Array.from(cont.querySelectorAll('img.nota-redes-icon'));
-    await Promise.all(imagenes.map(imagen=>imagen.decode()));
-    canvas = await html2canvas(cont, {
-      scale:2,
-      backgroundColor:'#ffffff',
-      windowWidth:window.innerWidth,
-      windowHeight:Math.max(window.innerHeight, cont.scrollHeight),
-      scrollX:0,
-      scrollY:0,
-      onclone:clonedDocument=>{
-        const notaClonada = clonedDocument.getElementById('nota-render');
-        if(notaClonada) notaClonada.style.visibility = 'visible';
-      }
-    });
-  }finally{
-    cont.style.left = posicionOriginal.left;
-    cont.style.top = posicionOriginal.top;
-    cont.style.visibility = posicionOriginal.visibility;
-  }
+    const cont = document.getElementById('nota-render');
+    cont.innerHTML = construirNotaHTML(cot);
+    const posicionOriginal = {left:cont.style.left, top:cont.style.top, visibility:cont.style.visibility};
 
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({unit:'mm', format:'a4'});
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const pageMargin = 10;
-  const printableWidth = pageWidth - pageMargin * 2;
-  const printableHeight = pageHeight - pageMargin * 2;
-  const pixelsPerMm = canvas.width / printableWidth;
-  const maxPagePixels = Math.floor(printableHeight * pixelsPerMm);
-  const notaBounds = cont.getBoundingClientRect();
-  const escalaCanvas = canvas.width / notaBounds.width;
-  const cortesSeguros = Array.from(cont.querySelectorAll(
-    '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes'
-  )).map(el=>Math.round((el.getBoundingClientRect().bottom - notaBounds.top) * escalaCanvas))
-    .filter(corte=>corte>0 && corte<=canvas.height)
-    .sort((a,b)=>a-b);
-  const encabezadoTabla = cont.querySelector('.nota-tabla thead');
-  const altoEncabezado = encabezadoTabla
-    ? Math.ceil(encabezadoTabla.getBoundingClientRect().height * escalaCanvas) : 0;
-  const inicioEncabezado = encabezadoTabla
-    ? Math.round((encabezadoTabla.getBoundingClientRect().top - notaBounds.top) * escalaCanvas) : 0;
-
-  let inicio = 0;
-  let numeroPagina = 0;
-  while(inicio < canvas.height){
-    const repetirEncabezado = numeroPagina > 0 && altoEncabezado > 0;
-    const altoDisponible = maxPagePixels - (repetirEncabezado ? altoEncabezado : 0);
-    const limite = Math.min(canvas.height, inicio + altoDisponible);
-    const cortesPagina = cortesSeguros.filter(corte=>corte>inicio && corte<=limite);
-    const fin = limite===canvas.height ? canvas.height : (cortesPagina.pop() || limite);
-    const altoContenido = fin - inicio;
-    const altoPagina = altoContenido + (repetirEncabezado ? altoEncabezado : 0);
-    const paginaCanvas = document.createElement('canvas');
-    paginaCanvas.width = canvas.width;
-    paginaCanvas.height = altoPagina;
-    const contexto = paginaCanvas.getContext('2d');
-    if(repetirEncabezado){
-      contexto.drawImage(canvas, 0, inicioEncabezado, canvas.width, altoEncabezado, 0, 0, canvas.width, altoEncabezado);
+    let canvas;
+    try{
+      cont.style.left = '0px';
+      cont.style.top = '0px';
+      cont.style.visibility = 'hidden';
+      const imagenes = Array.from(cont.querySelectorAll('img.nota-redes-icon'));
+      await Promise.all(imagenes.map(imagen=>imagen.decode()));
+      canvas = await html2canvas(cont, {
+        scale:2,
+        backgroundColor:'#ffffff',
+        windowWidth:window.innerWidth,
+        windowHeight:Math.max(window.innerHeight, cont.scrollHeight),
+        scrollX:0,
+        scrollY:0,
+        onclone:clonedDocument=>{
+          const notaClonada = clonedDocument.getElementById('nota-render');
+          if(notaClonada) notaClonada.style.visibility = 'visible';
+        }
+      });
+    }finally{
+      cont.style.left = posicionOriginal.left;
+      cont.style.top = posicionOriginal.top;
+      cont.style.visibility = posicionOriginal.visibility;
     }
-    contexto.drawImage(canvas, 0, inicio, canvas.width, altoContenido, 0,
-      repetirEncabezado ? altoEncabezado : 0, canvas.width, altoContenido);
-    if(numeroPagina > 0) pdf.addPage();
-    pdf.addImage(paginaCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', pageMargin, pageMargin, printableWidth, altoPagina / pixelsPerMm);
-    inicio = fin;
-    numeroPagina++;
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:'mm', format:'a4'});
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const pageMargin = 10;
+    const printableWidth = pageWidth - pageMargin * 2;
+    const printableHeight = pageHeight - pageMargin * 2;
+    const pixelsPerMm = canvas.width / printableWidth;
+    const maxPagePixels = Math.floor(printableHeight * pixelsPerMm);
+    const notaBounds = cont.getBoundingClientRect();
+    const escalaCanvas = canvas.width / notaBounds.width;
+    const cortesSeguros = Array.from(cont.querySelectorAll(
+      '.nota-head, .nota-cliente, .nota-tabla thead, .nota-tabla tbody tr, .nota-totales, .nota-foot, .nota-redes, .nota-horario'
+    )).map(el=>Math.round((el.getBoundingClientRect().bottom - notaBounds.top) * escalaCanvas))
+      .filter(corte=>corte>0 && corte<=canvas.height)
+      .sort((a,b)=>a-b);
+    const encabezadoTabla = cont.querySelector('.nota-tabla thead');
+    const altoEncabezado = encabezadoTabla
+      ? Math.ceil(encabezadoTabla.getBoundingClientRect().height * escalaCanvas) : 0;
+    const inicioEncabezado = encabezadoTabla
+      ? Math.round((encabezadoTabla.getBoundingClientRect().top - notaBounds.top) * escalaCanvas) : 0;
+
+    let inicio = 0;
+    let numeroPagina = 0;
+    while(inicio < canvas.height){
+      const repetirEncabezado = numeroPagina > 0 && altoEncabezado > 0;
+      const altoDisponible = maxPagePixels - (repetirEncabezado ? altoEncabezado : 0);
+      const limite = Math.min(canvas.height, inicio + altoDisponible);
+      const cortesPagina = cortesSeguros.filter(corte=>corte>inicio && corte<=limite);
+      const fin = limite===canvas.height ? canvas.height : (cortesPagina.pop() || limite);
+      const altoContenido = fin - inicio;
+      const altoPagina = altoContenido + (repetirEncabezado ? altoEncabezado : 0);
+      const paginaCanvas = document.createElement('canvas');
+      paginaCanvas.width = canvas.width;
+      paginaCanvas.height = altoPagina;
+      const contexto = paginaCanvas.getContext('2d');
+      if(repetirEncabezado){
+        contexto.drawImage(canvas, 0, inicioEncabezado, canvas.width, altoEncabezado, 0, 0, canvas.width, altoEncabezado);
+      }
+      contexto.drawImage(canvas, 0, inicio, canvas.width, altoContenido, 0,
+        repetirEncabezado ? altoEncabezado : 0, canvas.width, altoContenido);
+      if(numeroPagina > 0) pdf.addPage();
+      pdf.addImage(paginaCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', pageMargin, pageMargin, printableWidth, altoPagina / pixelsPerMm);
+      inicio = fin;
+      numeroPagina++;
+    }
+
+    const {error} = await supabaseClient.from('cotizaciones').upsert({
+      id:cot.id,
+      folio:cot.folio,
+      creado:cot.creado,
+      datos:cot
+    },{onConflict:'id'});
+    if(error) throw error;
+    pdf.save(`cotizacion-${cot.folio}.pdf`);
+  }catch(error){
+    console.error('No se pudo generar y guardar la cotización:', error);
+    await avisar('No se pudo generar o guardar la cotización. ' + (error.message || 'Intenta de nuevo.'));
+  }finally{
+    boton.disabled = false;
   }
-  pdf.save(`cotizacion-${cot.folio}.pdf`);
 }
 
 (async function iniciar(){

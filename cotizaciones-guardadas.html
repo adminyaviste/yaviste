@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ya Viste — Cotizaciones guardadas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--ink:#1A1A1A;--paper:#F7F5EF;--white:#fff;--line:#E3DFD3;--teal:#0B4F6C;--teal-dark:#083A50;--muted:#78736A;--magenta:#E6007E;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;}
+  a{color:inherit;text-decoration:none;}
+  header{background:var(--teal-dark);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:2;}
+  header h1{font-family:'Archivo Black',sans-serif;font-size:17px;margin:0;}
+  header .sub{font-size:11px;color:#B7CBD3;margin-top:3px;}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:9px 12px;font:600 13px 'Inter',sans-serif;color:#fff;background:transparent;cursor:pointer;}
+  main{max-width:900px;margin:0 auto;padding:22px 16px 60px;}
+  .aviso{text-align:center;padding:42px 18px;background:var(--white);border:1px solid var(--line);border-radius:12px;color:var(--muted);line-height:1.6;}
+  .lista{display:grid;gap:12px;}
+  .cotizacion{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .cabecera{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  .folio{font-family:'Archivo Black',sans-serif;color:var(--teal-dark);font-size:16px;}
+  .fecha{font-size:12px;color:var(--muted);margin-top:4px;}
+  .total{font-family:'Archivo Black',sans-serif;color:var(--magenta);white-space:nowrap;}
+  .resumen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0;font-size:13px;}
+  .dato{overflow-wrap:anywhere;}
+  .dato b{display:block;color:var(--muted);font-size:11px;margin-bottom:3px;}
+  details{border-top:1px solid var(--line);padding-top:10px;font-size:13px;}
+  summary{font-weight:600;color:var(--teal-dark);cursor:pointer;}
+  .acciones{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .btn-pedido{background:var(--magenta);border:none;color:#fff;}
+  .btn-pedido:disabled{opacity:.5;cursor:not-allowed;}
+  .pedido-generado{font-size:12.5px;font-weight:600;color:var(--teal-dark);}
+  .contacto{line-height:1.7;margin:10px 0;color:#4d4a44;overflow-wrap:anywhere;}
+  .leyenda-detalle{margin:12px 0 0;font-size:12px;color:#6b665d;font-style:italic;}
+  .productos{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}
+  .productos th,.productos td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;}
+  .productos th:last-child,.productos td:last-child{text-align:right;white-space:nowrap;}
+  @media(max-width:560px){header{align-items:flex-start;flex-direction:column}.resumen{grid-template-columns:1fr 1fr}.cabecera{align-items:flex-start}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>YA VISTE · Cotizaciones</h1>
+    <div class="sub">Cotizaciones guardadas</div>
+  </div>
+  <div class="actions">
+    <a href="Cotizaciones.html" class="btn">+ Nueva cotización</a>
+    <a href="Pedidos%202.html?volver=1" class="btn">← Pedidos</a>
+  </div>
+</header>
+<main>
+  <div id="estado" class="aviso" role="status">Cargando cotizaciones…</div>
+  <section id="lista" class="lista" aria-label="Cotizaciones guardadas" hidden></section>
+</main>
+<script src="supabase-config.js"></script>
+<script>
+const config = window.YAVISTE_SUPABASE_CONFIG || {};
+const supabaseClient = window.supabase && config.url && config.anonKey
+  && !config.url.includes('YOUR_PROJECT_REF')
+  && !config.anonKey.includes('YOUR_SUPABASE_')
+  ? window.supabase.createClient(config.url, config.anonKey, {
+    auth:{persistSession:true, autoRefreshToken:true}
+  })
+  : null;
+
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function formatoMoneda(value){
+  return (Number(value)||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'});
+}
+function totalCotizacion(datos){
+  const productos = Array.isArray(datos.productos) ? datos.productos : [];
+  const subtotal = productos.reduce((s,p)=>s+(Number(p.cantidad)||0)*(Number(p.precio)||0),0);
+  return subtotal + (datos.ivaAplica ? subtotal*0.16 : 0);
+}
+let cotizacionesCargadas = [];
+
+function botonPedido(datos){
+  if(datos.pedidoFolio) return `<span class="pedido-generado">Pedido generado: #${escapeHtml(datos.pedidoFolio)}</span>`;
+  return '<button type="button" class="btn btn-pedido" data-generar-pedido>Generar pedido</button>';
+}
+
+function crearFolioAleatorio(){
+  const valor = window.crypto.getRandomValues(new Uint32Array(1))[0];
+  return 100000 + (valor % 900000);
+}
+
+async function folioDisponible(){
+  for(let intento = 0; intento < 5; intento++){
+    const folio = crearFolioAleatorio();
+    const {data,error} = await supabaseClient.rpc('consultar_pedido_por_folio',{folio_buscado:folio});
+    if(error) throw error;
+    if(!data || !data.length) return folio;
+  }
+  throw new Error('No se pudo asignar un folio libre. Intenta de nuevo.');
+}
+
+function pedidoDesdeCotizacion(datos, folio){
+  return {
+    id:'o'+Date.now(),
+    folio,
+    creado:new Date().toISOString(),
+    cliente:{nombre:'',whatsapp:'',correo:'',...(datos.cliente||{})},
+    fechaEntrega:'',
+    atendidoPor:datos.atendidoPor || '',
+    productos:(Array.isArray(datos.productos) ? datos.productos : []).map(p=>({desc:p.desc,cantidad:p.cantidad,precio:p.precio})),
+    ivaAplica:Boolean(datos.ivaAplica),
+    anticipo:0,
+    estatus:'pendiente',
+    estatusPago:'pendiente',
+    notas:'',
+    metodoPago:'',
+    domicilioEntrega:datos.domicilioEntrega || '',
+    cotizacionFolio:datos.folio,
+    facturacion:{
+      razonSocial:'',rfc:'',regimenFiscal:'',nombreComercial:'',
+      calle:'',numero:'',colonia:'',codigoPostal:'',municipio:'',estado:''
+    }
+  };
+}
+
+async function generarPedido(cotizacion,boton){
+  const {datos} = cotizacion;
+  if(!window.confirm(`¿Generar un pedido a partir de la cotización #COT-${cotizacion.folio}?`)) return;
+  boton.disabled = true;
+  try{
+    const folio = await folioDisponible();
+    const {id,folio:_folio,creado,estatus,estatusPago,...datosPedido} = pedidoDesdeCotizacion(datos,folio);
+    const {error} = await supabaseClient.from('pedidos').insert({
+      id,folio,creado,estatus,estatus_pago:estatusPago,datos:datosPedido
+    });
+    if(error) throw error;
+    cotizacion.datos = {...datos,pedidoFolio:folio};
+    const {error:marcaError} = await supabaseClient.from('cotizaciones')
+      .update({datos:cotizacion.datos}).eq('id',cotizacion.id);
+    if(marcaError) console.error('No se pudo marcar la cotización como convertida:',marcaError);
+    boton.parentElement.innerHTML = botonPedido(cotizacion.datos);
+    window.alert(`Pedido generado con el folio #${folio}.`);
+  }catch(error){
+    console.error('No se pudo generar el pedido:',error);
+    boton.disabled = false;
+    window.alert('No se pudo generar el pedido. ' + (error.message || 'Intenta de nuevo.'));
+  }
+}
+
+function mostrarCotizaciones(cotizaciones){
+  cotizacionesCargadas = cotizaciones;
+  const lista = document.getElementById('lista');
+  lista.innerHTML = cotizaciones.map(({id,folio,creado,datos})=>{
+    const cliente = datos.cliente || {};
+    const productos = Array.isArray(datos.productos) ? datos.productos : [];
+    const filas = productos.map(producto=>`
+      <tr>
+        <td>${escapeHtml(producto.desc || '-')}</td>
+        <td>${escapeHtml(producto.cantidad)}</td>
+        <td>${formatoMoneda(producto.precio)}</td>
+        <td>${formatoMoneda((Number(producto.cantidad)||0)*(Number(producto.precio)||0))}</td>
+      </tr>`).join('');
+    const fecha = new Date(creado);
+    return `<article class="cotizacion" data-id="${escapeHtml(id)}">
+      <div class="cabecera">
+        <div><div class="folio">#COT-${escapeHtml(folio)}</div><div class="fecha">${Number.isNaN(fecha.getTime()) ? '' : escapeHtml(fecha.toLocaleString('es-MX'))}</div></div>
+        <div class="total">${formatoMoneda(totalCotizacion(datos))}</div>
+      </div>
+      <div class="resumen">
+        <div class="dato"><b>Cliente</b>${escapeHtml(cliente.nombre || 'Sin nombre')}</div>
+        <div class="dato"><b>Atendido por</b>${escapeHtml(datos.atendidoPor || '—')}</div>
+        <div class="dato"><b>Productos</b>${productos.length}</div>
+      </div>
+      <div class="acciones">${botonPedido(datos)}</div>
+      <details>
+        <summary>Ver detalle</summary>
+        <div class="contacto">
+          ${cliente.whatsapp ? `<div><b>WhatsApp:</b> ${escapeHtml(cliente.whatsapp)}</div>` : ''}
+          ${cliente.correo ? `<div><b>Correo:</b> ${escapeHtml(cliente.correo)}</div>` : ''}
+          ${datos.domicilioEntrega ? `<div><b>Domicilio:</b> ${escapeHtml(datos.domicilioEntrega)}</div>` : ''}
+        </div>
+        <table class="productos">
+          <thead><tr><th>Producto</th><th>Cant.</th><th>Precio unit.</th><th>Importe</th></tr></thead>
+          <tbody>${filas}</tbody>
+          <tfoot><tr><th colspan="3">Total${datos.ivaAplica ? ' (IVA incluido)' : ''}</th><th>${formatoMoneda(totalCotizacion(datos))}</th></tr></tfoot>
+        </table>
+        <p class="leyenda-detalle">Se desactiva el botón que genera el pedido cuando una cotización ya fué generada como pedido</p>
+      </details>
+    </article>`;
+  }).join('');
+  document.getElementById('estado').hidden = true;
+  lista.hidden = false;
+}
+
+document.getElementById('lista').addEventListener('click',event=>{
+  const boton = event.target.closest('[data-generar-pedido]');
+  if(!boton) return;
+  const cotizacion = cotizacionesCargadas.find(c=>c.id===boton.closest('.cotizacion').dataset.id);
+  if(cotizacion) generarPedido(cotizacion,boton);
+});
+
+async function cargarCotizaciones(){
+  const estado = document.getElementById('estado');
+  try{
+    if(!supabaseClient) throw new Error('Supabase no está configurado en este sitio.');
+    const {data:{session},error:sessionError} = await supabaseClient.auth.getSession();
+    if(sessionError) throw sessionError;
+    if(!session){
+      estado.textContent = 'Esta página es solo para el personal. Inicia sesión desde Pedidos para consultar las cotizaciones.';
+      return;
+    }
+    const {data:staff,error:staffError} = await supabaseClient
+      .from('staff_roles').select('role').eq('user_id',session.user.id).maybeSingle();
+    if(staffError) throw staffError;
+    if(!staff || !['admin','empleado'].includes(staff.role)){
+      estado.textContent = 'Esta página es solo para el personal autorizado.';
+      return;
+    }
+    const {data,error} = await supabaseClient
+      .from('cotizaciones').select('id,folio,creado,datos').order('creado',{ascending:false});
+    if(error) throw error;
+    if(!data.length){
+      estado.textContent = 'Todavía no hay cotizaciones guardadas.';
+      return;
+    }
+    mostrarCotizaciones(data);
+  }catch(error){
+    console.error('No se pudieron cargar las cotizaciones:',error);
+    estado.textContent = 'No se pudieron cargar las cotizaciones. ' + (error.message || 'Intenta de nuevo más tarde.');
+  }
+}
+cargarCotizaciones();
+</script>
+</body>
+</html>
