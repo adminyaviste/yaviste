@@ -779,6 +779,7 @@ function renderTarjetaEstado(pedido){
         <div class="paso ${idx>=2?'on':''}"></div>
       </div>
       <div class="fila"><span>Fecha de entrega</span><b>${pedido.fecha_entrega||'Por confirmar'}</b></div>
+      ${pedido.hora_entrega?`<div class="fila"><span>Hora de entrega</span><b>${escapeHtml(pedido.hora_entrega)}</b></div>`:''}
       ${mostrarMontos?`
         <div class="fila"><span>Total</span><b>$${fmt(total)}</b></div>
         <div class="fila"><span>Anticipo</span><b>$${fmt(anticipo)}</b></div>
@@ -1645,6 +1646,7 @@ function construirNotaHTML(o){
         <div><b>Cliente</b>${escapeHtml(o.cliente.nombre)}</div>
         <div><b>WhatsApp</b>${escapeHtml(o.cliente.whatsapp||'-')}</div>
         <div><b>Entrega</b>${o.fechaEntrega||'Por confirmar'}</div>
+        ${o.horaEntrega ? `<div><b>Hora de entrega</b>${escapeHtml(o.horaEntrega)}</div>` : ''}
         ${o.atendidoPor ? `<div><b>Atendido por</b>${escapeHtml(o.atendidoPor)}</div>` : ''}
       </div>
       <table class="nota-tabla">

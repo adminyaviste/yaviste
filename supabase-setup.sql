@@ -76,6 +76,8 @@ create table if not exists public.pedidos_cliente (
   estatus_pago text not null default 'pendiente' check (estatus_pago in ('pendiente', 'en_proceso', 'pagado'))
 );
 
+alter table public.pedidos_cliente add column if not exists hora_entrega text;
+
 alter table public.pedidos_cliente add column if not exists estatus_pago text not null default 'pendiente'
   check (estatus_pago in ('pendiente', 'en_proceso', 'pagado'));
 
@@ -162,7 +164,10 @@ as $$
       - 'anticipo'
       - 'metodoPago'
       - 'ivaAplica'
-      || jsonb_build_object('cliente', jsonb_build_object('nombre', coalesce(pedido_datos #>> '{cliente,nombre}', '')))
+      || jsonb_build_object('cliente', jsonb_build_object(
+        'nombre', coalesce(pedido_datos #>> '{cliente,nombre}', ''),
+        'whatsapp', coalesce(pedido_datos #>> '{cliente,whatsapp}', pedido_datos #>> '{cliente,telefono}', '')
+      ))
     ),
     '{saldoPendiente}',
     case
@@ -218,13 +223,13 @@ using (
 drop function if exists public.consultar_pedidos_por_telefono(text);
 drop function if exists public.consultar_pedido_por_folio(bigint);
 create function public.consultar_pedido_por_folio(folio_buscado bigint)
-returns table (folio bigint, fecha_entrega text, estatus text, estatus_pago text, total numeric, anticipo numeric)
+returns table (folio bigint, fecha_entrega text, hora_entrega text, estatus text, estatus_pago text, total numeric, anticipo numeric)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select pedido.folio, pedido.fecha_entrega, pedido.estatus, pedido.estatus_pago,
+  select pedido.folio, pedido.fecha_entrega, pedido.hora_entrega, pedido.estatus, pedido.estatus_pago,
          case when public.current_staff_role() = 'empleado' then null else pedido.total end,
          case when public.current_staff_role() = 'empleado' then null else pedido.anticipo end
   from public.pedidos_cliente as pedido
@@ -333,12 +338,13 @@ begin
   from jsonb_array_elements(coalesce(new.datos -> 'productos', '[]'::jsonb)) as products(item);
 
   insert into public.pedidos_cliente (
-    id, folio, cliente_telefono, fecha_entrega, total, anticipo, estatus, estatus_pago
+    id, folio, cliente_telefono, fecha_entrega, hora_entrega, total, anticipo, estatus, estatus_pago
   ) values (
     new.id,
     new.folio,
     new.cliente_telefono,
     new.datos ->> 'fechaEntrega',
+    nullif(new.datos ->> 'horaEntrega', ''),
     subtotal + case when coalesce((new.datos ->> 'ivaAplica')::boolean, false) then subtotal * 0.16 else 0 end,
     coalesce(nullif(new.datos ->> 'anticipo', '')::numeric, 0),
     new.estatus,
@@ -348,6 +354,7 @@ begin
     folio = excluded.folio,
     cliente_telefono = excluded.cliente_telefono,
     fecha_entrega = excluded.fecha_entrega,
+    hora_entrega = excluded.hora_entrega,
     total = excluded.total,
     anticipo = excluded.anticipo,
     estatus = excluded.estatus,
@@ -361,6 +368,12 @@ create trigger sync_customer_order_summary
 after insert or update on public.pedidos
 for each row execute function public.sync_customer_order_summary();
 revoke all on function public.sync_customer_order_summary() from public, anon, authenticated;
+
+update public.pedidos_cliente as resumen
+set hora_entrega = nullif(pedido.datos ->> 'horaEntrega', '')
+from public.pedidos as pedido
+where pedido.id = resumen.id
+  and resumen.hora_entrega is distinct from nullif(pedido.datos ->> 'horaEntrega', '');
 
 create or replace function public.sincronizar_folio_pedidos()
 returns void
