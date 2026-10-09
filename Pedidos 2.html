@@ -177,11 +177,43 @@
   }
   .folio{
     font-family:'Archivo Black';
-    font-size:15px;
+    font-size:23px;
+    color:var(--teal-dark);
+    line-height:1.15;
+  }
+  .cliente-nombre{font-weight:500;font-size:12.5px;color:var(--muted);margin-top:5px;}
+  .order-meta{font-size:12px;color:var(--muted);margin-top:4px;}
+  .order-details{
+    margin-top:8px;
+    border-radius:8px;
+    padding:8px 10px;
+    background:#E8F5F3;
     color:var(--teal-dark);
   }
-  .cliente-nombre{font-weight:600;font-size:14.5px;margin-top:2px;}
-  .order-meta{font-size:12px;color:var(--muted);margin-top:4px;}
+  .order-detail{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    font-size:13px;
+    font-weight:600;
+  }
+  .order-detail+.order-detail{margin-top:5px;padding-top:5px;border-top:1px solid rgba(0,105,100,.14);}
+  .order-detail-name{overflow-wrap:anywhere;}
+  .order-detail-quantity{flex:none;font-size:12px;white-space:nowrap;}
+  .order-notes{
+    margin-top:7px;
+    padding:8px 10px;
+    border-left:3px solid #D89A18;
+    border-radius:6px;
+    background:#FFF6DF;
+    color:#674B13;
+    font-size:12px;
+    line-height:1.45;
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
+  }
+  .order-notes-label{display:block;margin-bottom:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
   .pill{
     font-size:11px;
     font-weight:700;
@@ -923,7 +955,7 @@ function renderResumen(){
       <div class="label">Entregas hoy</div>
       ${entregasHoy.length
         ? `<div class="summary-delivery-list">${entregasHoy.map(order=>`
-            <button class="summary-delivery-order" type="button" data-order-id="${escapeHtml(String(order.id))}">#${String(order.folio).padStart(4,'0')}${currentRole==='admin'?' · '+escapeHtml(order.cliente?.nombre||'Sin nombre'):''}</button>
+            <button class="summary-delivery-order" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}${currentRole==='admin'?' · '+escapeHtml(order.cliente?.nombre||'Sin nombre'):''}</button>
           `).join('')}</div>`
         : '<div class="summary-delivery-empty">Sin entregas pendientes</div>'}
     </div>
@@ -992,19 +1024,23 @@ function renderLista(){
   cont.innerHTML = items.map(o=>{
     const restringido = pedidoEmpleadoRestringido(o);
     const estatusLabel = {pendiente:'En diseño', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
-    const detallesTrabajo = restringido
-      ? `<div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
-         <div class="order-meta">${(o.productos||[]).map(producto=>`${escapeHtml(producto.desc||'Sin descripción')} · Cantidad: ${escapeHtml(String(producto.cantidad??''))}`).join('<br>')}</div>`
-      : '';
+    const detallesPedido = (o.productos||[]).map(producto=>`
+      <div class="order-detail">
+        <span class="order-detail-name">${escapeHtml(producto.desc||'Sin descripción')}</span>
+        <span class="order-detail-quantity">Cant. ${escapeHtml(String(producto.cantidad??''))}</span>
+      </div>
+    `).join('');
+    const notasInternas = String(o.notas||'').trim();
     return `
       <div class="order-card" onclick="abrirPedido('${o.id}')">
         <div class="order-top">
           <div>
-            <div class="folio">#${String(o.folio).padStart(4,'0')}</div>
-            ${restringido
-              ? detallesTrabajo
-              : `<div class="cliente-nombre">${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
-                 <div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`}
+            <div class="folio">Pedido ${String(o.folio).padStart(4,'0')}</div>
+            <div class="order-details">${detallesPedido||'<div class="order-detail-name">Sin detalles registrados</div>'}</div>
+            ${notasInternas?`<div class="order-notes"><span class="order-notes-label">Nota interna</span>${escapeHtml(notasInternas)}</div>`:''}
+            <div class="cliente-nombre">Cliente: ${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
+            ${restringido?'':`<div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`}
+            <div class="order-meta">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
           </div>
           <div class="order-statuses">
             <span class="pill ${o.estatus}">${estatusLabel}</span>
@@ -1120,7 +1156,7 @@ function abrirNuevo(){
   if(currentRole!=='admin' && currentRole!=='empleado') return;
   editingId = null;
   draftOrder = nuevoPedidoVacio();
-  document.getElementById('drawerTitulo').textContent = 'Nuevo pedido — #'+String(draftOrder.folio).padStart(4,'0');
+  document.getElementById('drawerTitulo').textContent = 'Nuevo pedido — '+String(draftOrder.folio).padStart(4,'0');
   renderForm();
   openDrawer();
 }
@@ -1145,7 +1181,7 @@ function abrirPedido(id){
   editingId = id;
   const o = state.orders.find(x=>x.id===id);
   draftOrder = normalizarPedido(JSON.parse(JSON.stringify(o)));
-  document.getElementById('drawerTitulo').textContent = 'Editar pedido — #'+String(o.folio).padStart(4,'0');
+  document.getElementById('drawerTitulo').textContent = 'Editar pedido — '+String(o.folio).padStart(4,'0');
   renderForm();
   openDrawer();
 }
