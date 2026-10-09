@@ -466,7 +466,7 @@ create index if not exists cotizaciones_creado_idx on public.cotizaciones (cread
 
 alter table public.cotizaciones enable row level security;
 revoke all on public.cotizaciones from anon;
-grant select, insert, update on public.cotizaciones to authenticated;
+grant select, insert, update, delete on public.cotizaciones to authenticated;
 
 drop policy if exists "Staff can read quotes" on public.cotizaciones;
 create policy "Staff can read quotes"
@@ -483,3 +483,8 @@ create policy "Staff can update quotes"
 on public.cotizaciones for update to authenticated
 using (public.current_staff_role() in ('admin', 'empleado'))
 with check (public.current_staff_role() in ('admin', 'empleado'));
+
+drop policy if exists "Staff can delete quotes" on public.cotizaciones;
+create policy "Staff can delete quotes"
+on public.cotizaciones for delete to authenticated
+using (public.current_staff_role() in ('admin', 'empleado'));

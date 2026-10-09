@@ -32,8 +32,14 @@
   summary{font-weight:600;color:var(--teal-dark);cursor:pointer;}
   .acciones{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
   .btn-pedido{background:var(--magenta);border:none;color:#fff;}
+  .btn-editar{border-color:var(--teal);color:var(--teal);}
+  .btn-eliminar{border-color:#C0392B;color:#C0392B;}
   .btn-pedido:disabled{opacity:.5;cursor:not-allowed;}
   .pedido-generado{font-size:12.5px;font-weight:600;color:var(--teal-dark);}
+  .filtro{margin-bottom:14px;}
+  .filtro label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px;}
+  .filtro input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font:14px 'Inter',sans-serif;}
+  .sin-resultados{text-align:center;padding:20px;color:var(--muted);font-size:13px;}
   .contacto{line-height:1.7;margin:10px 0;color:#4d4a44;overflow-wrap:anywhere;}
   .leyenda-detalle{margin:12px 0 0;font-size:12px;color:#6b665d;font-style:italic;}
   .productos{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}
@@ -64,6 +70,11 @@
 </header>
 <main>
   <div id="estado" class="aviso" role="status">Cargando cotizaciones…</div>
+  <div id="filtro" class="filtro" hidden>
+    <label for="buscarCliente">Buscar por nombre de cliente</label>
+    <input id="buscarCliente" type="search" placeholder="Escribe el nombre del cliente" autocomplete="off">
+  </div>
+  <div id="sinResultados" class="sin-resultados" role="status" hidden>No hay cotizaciones con ese nombre.</div>
   <section id="lista" class="lista" aria-label="Cotizaciones guardadas" hidden></section>
 </main>
 <dialog id="dialogoEntrega">
@@ -107,6 +118,44 @@ let cotizacionesCargadas = [];
 function botonPedido(datos){
   if(datos.pedidoFolio) return `<span class="pedido-generado">Pedido generado: #${escapeHtml(datos.pedidoFolio)}</span>`;
   return '<button type="button" class="btn btn-pedido" data-generar-pedido>Generar pedido</button>';
+}
+
+function botonEditar(id,datos){
+  if(datos.pedidoFolio) return '';
+  return `<a class="btn btn-editar" href="Cotizaciones.html?editar=${encodeURIComponent(id)}">Editar</a>`;
+}
+
+function normalizarTexto(texto){
+  return String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es-MX');
+}
+
+function aplicarFiltro(){
+  const termino = normalizarTexto(document.getElementById('buscarCliente').value.trim());
+  const cotizacionesVisibles = Array.from(document.querySelectorAll('.cotizacion'))
+    .filter(elemento=>{
+      const coincide = normalizarTexto(elemento.dataset.cliente).includes(termino);
+      elemento.hidden = !coincide;
+      return coincide;
+    });
+  document.getElementById('sinResultados').hidden = cotizacionesVisibles.length > 0;
+}
+
+async function eliminarCotizacion(cotizacion,boton){
+  const nombreCliente = cotizacion.datos.cliente?.nombre || 'Sin nombre';
+  if(!window.confirm(`¿Eliminar la cotización #COT-${cotizacion.folio} de ${nombreCliente}? Esta acción no se puede deshacer.`)) return;
+  boton.disabled = true;
+  try{
+    const {data,error} = await supabaseClient.from('cotizaciones')
+      .delete().eq('id',cotizacion.id).select('id');
+    if(error) throw error;
+    if(!data || !data.length) throw new Error('No se encontró la cotización o no tienes permiso para eliminarla.');
+    cotizacionesCargadas = cotizacionesCargadas.filter(item=>item.id!==cotizacion.id);
+    mostrarCotizaciones(cotizacionesCargadas);
+  }catch(error){
+    console.error('No se pudo eliminar la cotización:',error);
+    window.alert('No se pudo eliminar la cotización. ' + (error.message || 'Intenta de nuevo.'));
+    boton.disabled = false;
+  }
 }
 
 function crearFolioAleatorio(){
@@ -203,6 +252,15 @@ async function generarPedido(cotizacion,boton){
 function mostrarCotizaciones(cotizaciones){
   cotizacionesCargadas = cotizaciones;
   const lista = document.getElementById('lista');
+  const estado = document.getElementById('estado');
+  if(!cotizaciones.length){
+    document.getElementById('filtro').hidden = true;
+    document.getElementById('sinResultados').hidden = true;
+    lista.hidden = true;
+    estado.textContent = 'Todavía no hay cotizaciones guardadas.';
+    estado.hidden = false;
+    return;
+  }
   lista.innerHTML = cotizaciones.map(({id,folio,creado,datos})=>{
     const cliente = datos.cliente || {};
     const productos = Array.isArray(datos.productos) ? datos.productos : [];
@@ -214,7 +272,7 @@ function mostrarCotizaciones(cotizaciones){
         <td>${formatoMoneda((Number(producto.cantidad)||0)*(Number(producto.precio)||0))}</td>
       </tr>`).join('');
     const fecha = new Date(creado);
-    return `<article class="cotizacion" data-id="${escapeHtml(id)}">
+    return `<article class="cotizacion" data-id="${escapeHtml(id)}" data-cliente="${escapeHtml(cliente.nombre || '')}">
       <div class="cabecera">
         <div><div class="folio">#COT-${escapeHtml(folio)}</div><div class="fecha">${Number.isNaN(fecha.getTime()) ? '' : escapeHtml(fecha.toLocaleString('es-MX'))}</div></div>
         <div class="total">${formatoMoneda(totalCotizacion(datos))}</div>
@@ -224,7 +282,7 @@ function mostrarCotizaciones(cotizaciones){
         <div class="dato"><b>Atendido por</b>${escapeHtml(datos.atendidoPor || '—')}</div>
         <div class="dato"><b>Productos</b>${productos.length}</div>
       </div>
-      <div class="acciones">${botonPedido(datos)}</div>
+      <div class="acciones">${botonPedido(datos)}${botonEditar(id,datos)}<button type="button" class="btn btn-eliminar" data-eliminar-cotizacion>Eliminar</button></div>
       <details>
         <summary>Ver detalle</summary>
         <div class="contacto">
@@ -241,16 +299,25 @@ function mostrarCotizaciones(cotizaciones){
       </details>
     </article>`;
   }).join('');
-  document.getElementById('estado').hidden = true;
+  estado.hidden = true;
+  document.getElementById('filtro').hidden = false;
   lista.hidden = false;
+  aplicarFiltro();
 }
 
 document.getElementById('lista').addEventListener('click',event=>{
+  const botonEliminar = event.target.closest('[data-eliminar-cotizacion]');
+  if(botonEliminar){
+    const cotizacion = cotizacionesCargadas.find(c=>c.id===botonEliminar.closest('.cotizacion').dataset.id);
+    if(cotizacion) eliminarCotizacion(cotizacion,botonEliminar);
+    return;
+  }
   const boton = event.target.closest('[data-generar-pedido]');
   if(!boton) return;
   const cotizacion = cotizacionesCargadas.find(c=>c.id===boton.closest('.cotizacion').dataset.id);
   if(cotizacion) generarPedido(cotizacion,boton);
 });
+document.getElementById('buscarCliente').addEventListener('input',aplicarFiltro);
 
 async function cargarCotizaciones(){
   const estado = document.getElementById('estado');
@@ -272,10 +339,6 @@ async function cargarCotizaciones(){
     const {data,error} = await supabaseClient
       .from('cotizaciones').select('id,folio,creado,datos').order('creado',{ascending:false});
     if(error) throw error;
-    if(!data.length){
-      estado.textContent = 'Todavía no hay cotizaciones guardadas.';
-      return;
-    }
     mostrarCotizaciones(data);
   }catch(error){
     console.error('No se pudieron cargar las cotizaciones:',error);
