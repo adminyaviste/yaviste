@@ -25,6 +25,27 @@ create table if not exists public.pedidos (
 alter table public.pedidos add column if not exists estatus_pago text not null default 'pendiente'
   check (estatus_pago in ('pendiente', 'en_proceso', 'pagado'));
 
+alter table public.pedidos add column if not exists revisado boolean not null default false;
+
+create or replace function public.limpiar_revisado_pedido()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.estatus <> 'terminado' or new.estatus_pago <> 'pagado' then
+    new.revisado := false;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists limpiar_revisado_pedido on public.pedidos;
+create trigger limpiar_revisado_pedido
+before insert or update on public.pedidos
+for each row execute function public.limpiar_revisado_pedido();
+revoke all on function public.limpiar_revisado_pedido() from public, anon, authenticated;
+
 alter table public.pedidos alter column folio drop identity if exists;
 
 create or replace function public.generar_folio_aleatorio()
@@ -196,13 +217,13 @@ revoke all on function public.datos_pedido_para_empleado(jsonb, text) from publi
 
 drop function if exists public.pedidos_para_empleado();
 create function public.pedidos_para_empleado()
-returns table (id text, folio bigint, creado timestamptz, estatus text, estatus_pago text, datos jsonb)
+returns table (id text, folio bigint, creado timestamptz, estatus text, estatus_pago text, revisado boolean, datos jsonb)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select pedido.id, pedido.folio, pedido.creado, pedido.estatus, pedido.estatus_pago,
+  select pedido.id, pedido.folio, pedido.creado, pedido.estatus, pedido.estatus_pago, pedido.revisado,
          public.datos_pedido_para_empleado(pedido.datos, pedido.estatus_pago)
   from public.pedidos as pedido
   where public.current_staff_role() = 'empleado'
@@ -305,6 +326,7 @@ begin
     'creado', pedido_actualizado.creado,
     'estatus', pedido_actualizado.estatus,
     'estatus_pago', pedido_actualizado.estatus_pago,
+    'revisado', pedido_actualizado.revisado,
     'datos', public.datos_pedido_para_empleado(pedido_actualizado.datos, pedido_actualizado.estatus_pago)
   );
 end;
@@ -312,6 +334,36 @@ $$;
 
 revoke all on function public.actualizar_estatus_pedido(text, text, text) from public, anon;
 grant execute on function public.actualizar_estatus_pedido(text, text, text) to authenticated;
+
+drop function if exists public.marcar_pedido_revisado(text, boolean);
+create function public.marcar_pedido_revisado(p_pedido_id text, p_revisado boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  valor_guardado boolean;
+begin
+  if coalesce(public.current_staff_role(), '') not in ('admin', 'empleado') then
+    raise exception 'Solo el personal autorizado puede usar esta funcion.';
+  end if;
+
+  update public.pedidos as pedido
+  set revisado = coalesce(p_revisado, false)
+  where pedido.id = p_pedido_id
+    and (not coalesce(p_revisado, false) or (pedido.estatus = 'terminado' and pedido.estatus_pago = 'pagado'))
+  returning pedido.revisado into valor_guardado;
+
+  if not found then
+    raise exception 'Solo se puede palomear un pedido terminado y pagado.';
+  end if;
+  return valor_guardado;
+end;
+$$;
+
+revoke all on function public.marcar_pedido_revisado(text, boolean) from public, anon;
+grant execute on function public.marcar_pedido_revisado(text, boolean) to authenticated;
 
 drop policy if exists "Admins can delete orders" on public.pedidos;
 create policy "Admins can delete orders"

@@ -116,6 +116,8 @@
     flex:1 1 100%;
   }
   .search-cliente{max-width:280px;}
+  .date-filter{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);}
+  .date-filter input[type="date"]{padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;font:inherit;color:var(--ink);background:var(--paper-2);}
   .chip{
     border:1.5px solid var(--line);
     background:var(--paper-2);
@@ -168,8 +170,23 @@
     padding:14px 16px;
     margin-bottom:10px;
     cursor:pointer;
+    position:relative;
   }
+  .order-check{
+    position:absolute;
+    top:10px;
+    right:12px;
+    width:20px;
+    height:20px;
+    margin:0;
+    accent-color:var(--teal);
+    cursor:pointer;
+    z-index:2;
+  }
+  .order-check:disabled{cursor:not-allowed;opacity:.35;}
+  .order-card.revisado{filter:grayscale(1);opacity:.6;background:#EDEDED;}
   .order-top{
+    padding-right:30px;
     display:flex;
     justify-content:space-between;
     align-items:flex-start;
@@ -579,6 +596,11 @@
 
   <div class="toolbar">
     <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre o folio" autocomplete="off">
+    <div class="date-filter">
+      <label>Creado desde <input id="fechaDesde" type="date"></label>
+      <label>hasta <input id="fechaHasta" type="date"></label>
+      <button type="button" class="chip" id="limpiarFechas" style="display:none;">Quitar fechas</button>
+    </div>
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
       <button class="chip" data-f="pendiente">En diseño</button>
@@ -748,6 +770,9 @@ async function entrarDashboard(rol){
   document.querySelector('#filtros [data-f="debe"]').style.display = rol==='admin' ? '' : 'none';
   currentFilter = 'todos';
   document.getElementById('buscarCliente').value = '';
+  document.getElementById('fechaDesde').value = '';
+  document.getElementById('fechaHasta').value = '';
+  document.getElementById('limpiarFechas').style.display = 'none';
   document.querySelectorAll('#filtros .chip').forEach(c=>c.classList.toggle('active', c.dataset.f==='todos'));
   document.querySelector('#filtros [data-f="pago_en_proceso"]').style.display = rol==='admin' ? '' : 'none';
   document.querySelector('#filtros [data-f="pagado"]').style.display = rol==='admin' ? '' : 'none';
@@ -843,7 +868,7 @@ async function loadState(){
     data = resultado.data;
   }else{
     const resultado = await supabaseClient.from('pedidos')
-      .select('id, folio, creado, estatus, estatus_pago, datos').order('folio', {ascending:false});
+      .select('id, folio, creado, estatus, estatus_pago, revisado, datos').order('folio', {ascending:false});
     if(resultado.error) throw resultado.error;
     data = resultado.data;
   }
@@ -873,7 +898,7 @@ async function loadState(){
       const {error:sequenceError} = await supabaseClient.rpc('sincronizar_folio_pedidos');
       if(sequenceError) throw sequenceError;
       const refreshed = await supabaseClient.from('pedidos')
-        .select('id, folio, creado, estatus, estatus_pago, datos').order('folio', {ascending:false});
+        .select('id, folio, creado, estatus, estatus_pago, revisado, datos').order('folio', {ascending:false});
       if(refreshed.error) throw refreshed.error;
       data = refreshed.data;
     }
@@ -885,11 +910,11 @@ async function loadState(){
 
 function pedidoDesdeFila(row){
   return {...row.datos, id:row.id, folio:Number(row.folio), creado:row.creado, estatus:row.estatus,
-    estatusPago:row.estatus_pago || 'pendiente'};
+    estatusPago:row.estatus_pago || 'pendiente', revisado:Boolean(row.revisado)};
 }
 
 function filaDesdePedido(order, incluirFolio=false){
-  const {id, folio, creado, estatus, estatusPago, ...datos} = order;
+  const {id, folio, creado, estatus, estatusPago, revisado, ...datos} = order;
   const row = {id, creado, estatus, estatus_pago:estatusPago || 'pendiente', datos};
   if(incluirFolio) row.folio = folio;
   return row;
@@ -917,10 +942,10 @@ async function guardarPedidoEnSupabase(order, esNuevo){
   }
   if(esNuevo){
     resultado = await supabaseClient.from('pedidos').insert(filaDesdePedido(order, true))
-      .select('id, folio, creado, estatus, estatus_pago, datos').single();
+      .select('id, folio, creado, estatus, estatus_pago, revisado, datos').single();
   }else{
     resultado = await supabaseClient.from('pedidos').update(filaDesdePedido(order))
-      .eq('id', order.id).select('id, folio, creado, estatus, estatus_pago, datos').single();
+      .eq('id', order.id).select('id, folio, creado, estatus, estatus_pago, revisado, datos').single();
   }
   if(resultado.error) throw resultado.error;
   return pedidoDesdeFila(resultado.data);
@@ -992,7 +1017,19 @@ function fechaHoyLocal(){
   return `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
 }
 
+function fechaLocalDeISO(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function pasaFiltro(o){
+  const desde = document.getElementById('fechaDesde').value;
+  const hasta = document.getElementById('fechaHasta').value;
+  if(desde || hasta){
+    const fecha = fechaLocalDeISO(o.creado);
+    if(!fecha || (desde && fecha < desde) || (hasta && fecha > hasta)) return false;
+  }
   const busqueda = normalizarBusqueda(document.getElementById('buscarCliente').value);
   const busquedaFolio = busqueda.replace(/^#/, '');
   const folio = String(o.folio ?? '');
@@ -1032,8 +1069,12 @@ function renderLista(){
       </div>
     `).join('');
     const notasInternas = String(o.notas||'').trim();
+    const puedeRevisar = o.estatus==='terminado' && o.estatusPago==='pagado';
     return `
-      <div class="order-card" onclick="abrirPedido('${o.id}')">
+      <div class="order-card${o.revisado?' revisado':''}" onclick="abrirPedido('${o.id}')">
+        <input type="checkbox" class="order-check" ${o.revisado?'checked':''} ${puedeRevisar?'':'disabled'}
+          title="${puedeRevisar?'Marcar como revisado':'Solo disponible si está terminado y pagado'}"
+          onclick="event.stopPropagation()" onchange="alternarRevisado('${o.id}', this)">
         <div class="order-top">
           <div>
             <div class="folio">Pedido ${String(o.folio).padStart(4,'0')}</div>
@@ -1068,6 +1109,21 @@ function renderLista(){
     `;
   }).join('');
   actualizarTemporizadores();
+}
+
+async function alternarRevisado(id, checkbox){
+  const pedido = state.orders.find(x=>x.id===id);
+  if(!pedido) return;
+  const valor = checkbox.checked;
+  checkbox.disabled = true;
+  try{
+    const {data, error} = await supabaseClient.rpc('marcar_pedido_revisado', {p_pedido_id:id, p_revisado:valor});
+    if(error) throw error;
+    pedido.revisado = Boolean(data);
+  }catch(error){
+    await avisar('No se pudo actualizar la casilla. ' + (error.message || ''));
+  }
+  renderLista();
 }
 
 function formatoTiempo(ms){
@@ -1108,6 +1164,18 @@ function escapeHtml(str){
 }
 
 document.getElementById('buscarCliente').addEventListener('input', renderLista);
+function alCambiarFechas(){
+  const hay = document.getElementById('fechaDesde').value || document.getElementById('fechaHasta').value;
+  document.getElementById('limpiarFechas').style.display = hay ? '' : 'none';
+  renderLista();
+}
+document.getElementById('fechaDesde').addEventListener('change', alCambiarFechas);
+document.getElementById('fechaHasta').addEventListener('change', alCambiarFechas);
+document.getElementById('limpiarFechas').addEventListener('click', ()=>{
+  document.getElementById('fechaDesde').value = '';
+  document.getElementById('fechaHasta').value = '';
+  alCambiarFechas();
+});
 
 document.getElementById('filtros').addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip');
