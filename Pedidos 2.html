@@ -156,7 +156,7 @@
 
   .summary-row{
     display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
     gap:10px;
     margin-bottom:18px;
   }
@@ -1017,17 +1017,15 @@ function renderResumen(){
           `).join('')}</div>`
         : '<div class="summary-order-empty">Sin pedidos en diseño</div>'}
     </div>
-    ${currentRole==='admin'
-      ? `<div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>`
-      : `<div class="summary-card">
-          <div class="num">${pedidosEnProceso.length}</div>
-          <div class="label">Pedidos en proceso</div>
-          ${pedidosEnProceso.length
-            ? `<div class="summary-order-list">${pedidosEnProceso.map(order=>`
-                <button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}</button>
-              `).join('')}</div>`
-            : '<div class="summary-order-empty">Sin pedidos en proceso</div>'}
-        </div>`}
+    <div class="summary-card">
+      <div class="num">${pedidosEnProceso.length}</div>
+      <div class="label">Pedidos en proceso</div>
+      ${pedidosEnProceso.length
+        ? `<div class="summary-order-list">${pedidosEnProceso.map(order=>`
+            <button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}</button>
+          `).join('')}</div>`
+        : '<div class="summary-order-empty">Sin pedidos en proceso</div>'}
+    </div>
     <div class="summary-card">
         <div class="num">${pedidosUrgentes.length}</div>
         <div class="label">Pedidos urgentes</div>
@@ -1046,6 +1044,9 @@ function renderResumen(){
           `).join('')}</div>`
         : '<div class="summary-order-empty">Sin entregas pendientes</div>'}
     </div>
+    ${currentRole==='admin'
+      ? `<div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>`
+      : ''}
   `;
 }
 
