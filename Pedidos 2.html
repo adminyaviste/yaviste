@@ -123,6 +123,8 @@
   @media (max-width:700px){
     .search-cliente{max-width:none;flex-basis:100%;}
     .date-filter{margin-left:0;width:100%;}
+    .order-image-thumb{width:68px;height:68px;flex-basis:68px;margin-top:22px;}
+    .summary-row{grid-template-columns:repeat(2,minmax(0,1fr));}
   }
   .chip{
     border:1.5px solid var(--line);
@@ -145,6 +147,8 @@
   .chip[data-f="debe"]{margin-left:0;}
   .chip[data-f="pendiente"],.chip[data-f="proceso"],.chip[data-f="pago_en_proceso"]{border-color:#E0A800;color:#8A6500;background:#FFF6D1;}
   .chip[data-f="pendiente"].active,.chip[data-f="proceso"].active,.chip[data-f="pago_en_proceso"].active{background:#F5C518;border-color:#E0A800;color:#3B2F00;}
+  .chip[data-f="proceso"]{border-color:#1976D2;color:#1565C0;background:#E8F1FF;}
+  .chip[data-f="proceso"].active{background:#1976D2;border-color:#1976D2;color:#fff;}
   .chip[data-f="terminado"],.chip[data-f="pagado"]{border-color:#1E8E3E;color:#1E8E3E;background:#E6F4EA;}
   .chip[data-f="terminado"].active,.chip[data-f="pagado"].active{background:#1E8E3E;border-color:#1E8E3E;color:#fff;}
   .chip[data-f="urgente"],.chip[data-f="debe"]{border-color:#C62828;color:#C62828;background:#FDECEC;}
@@ -152,7 +156,7 @@
 
   .summary-row{
     display:grid;
-    grid-template-columns:repeat(3,1fr);
+    grid-template-columns:repeat(4,minmax(0,1fr));
     gap:10px;
     margin-bottom:18px;
   }
@@ -164,10 +168,10 @@
   }
   .summary-card .num{font-family:'Archivo Black';font-size:20px;}
   .summary-card .label{font-size:11.5px;color:var(--muted);margin-top:2px;}
-  .summary-delivery-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:104px;overflow-y:auto;}
-  .summary-delivery-order{padding:0;border:0;background:none;color:var(--teal-dark);font:500 11px 'Inter',sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
-  .summary-delivery-order:hover{text-decoration:underline;}
-  .summary-delivery-empty{margin-top:8px;color:var(--muted);font-size:11px;}
+  .summary-order-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-height:104px;overflow-y:auto;}
+  .summary-order-link{padding:0;border:0;background:none;color:var(--teal-dark);font:500 11px 'Inter',sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  .summary-order-link:hover{text-decoration:underline;}
+  .summary-order-empty{margin-top:8px;color:var(--muted);font-size:11px;}
 
   .order-card{
     background:var(--paper-2);
@@ -179,18 +183,38 @@
     position:relative;
   }
   .order-check{
-    position:absolute;
-    top:10px;
-    right:12px;
     width:20px;
     height:20px;
-    margin:0;
+    margin:0 0 0 6px;
     accent-color:var(--teal);
     cursor:pointer;
-    z-index:2;
   }
   .order-check:disabled{cursor:not-allowed;opacity:.35;}
+  .order-review-control{position:relative;z-index:2;width:max-content;max-width:100%;margin:0 0 8px auto;text-align:right;}
+  .order-review-label{display:flex;align-items:center;justify-content:flex-end;color:#16803c;font-size:11.5px;font-weight:700;cursor:pointer;}
+  .order-review-legend{max-width:240px;margin-top:2px;color:var(--muted);font-size:10.5px;line-height:1.35;}
   .order-card.revisado{filter:grayscale(1);opacity:.6;background:#EDEDED;}
+  .order-image-thumb{
+    display:block;
+    width:88px;
+    height:88px;
+    flex:0 0 88px;
+    margin:22px 0 0;
+    border:1px solid var(--line);
+    border-radius:8px;
+    object-fit:cover;
+  }
+  .order-content-row{display:flex;align-items:flex-start;gap:10px;}
+  .order-content-main{flex:1;min-width:0;}
+  .order-image-preview{
+    display:block;
+    max-width:100%;
+    max-height:240px;
+    margin-top:8px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    object-fit:contain;
+  }
   .order-top{
     padding-right:30px;
     display:flex;
@@ -357,18 +381,6 @@
     margin-bottom:8px;
     color:var(--teal-dark);
   }
-  .billing-toggle{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin:0;
-    color:var(--teal-dark);
-    font-family:'Archivo Black',sans-serif;
-    font-size:13px;
-    cursor:pointer;
-  }
-  .billing-toggle input{width:auto;margin:0;flex-shrink:0;}
-
   .prod-row{
     background:#fff;
     border:1px solid var(--line);
@@ -911,7 +923,21 @@ async function loadState(){
   }
 
   state.orders = (data || []).map(pedidoDesdeFila);
+  const erroresImagenes = [];
+  await Promise.all(state.orders.map(async order=>{
+    if(!order.imagenPath) return;
+    const {data:imageData, error:imageError} = await supabaseClient.storage
+      .from('imagenes-pedidos')
+      .createSignedUrl(order.imagenPath, 86400);
+    if(imageError){
+      console.error(`No se pudo cargar la imagen del pedido ${order.folio}:`, imageError);
+      erroresImagenes.push(`Pedido ${order.folio}: ${imageError.message}`);
+    }else{
+      order.imagenUrl = imageData.signedUrl;
+    }
+  }));
   render();
+  if(erroresImagenes.length) await avisar('No se pudieron cargar algunas imágenes. ' + erroresImagenes.join(' '));
 }
 
 function pedidoDesdeFila(row){
@@ -920,7 +946,7 @@ function pedidoDesdeFila(row){
 }
 
 function filaDesdePedido(order, incluirFolio=false){
-  const {id, folio, creado, estatus, estatusPago, revisado, ...datos} = order;
+  const {id, folio, creado, estatus, estatusPago, revisado, imagenUrl, facturacion, ...datos} = order;
   const row = {id, creado, estatus, estatus_pago:estatusPago || 'pendiente', datos};
   if(incluirFolio) row.folio = folio;
   return row;
@@ -932,7 +958,8 @@ async function guardarPedidoEnSupabase(order, esNuevo){
     const {data, error} = await supabaseClient.rpc('actualizar_estatus_pedido', {
       p_pedido_id:order.id,
       p_nuevo_estatus:order.estatus,
-      p_nuevo_estatus_pago:order.estatusPago
+      p_nuevo_estatus_pago:order.estatusPago,
+      p_nueva_imagen_path:order.imagenPath || null
     });
     if(error) throw error;
     return pedidoDesdeFila(data);
@@ -971,25 +998,53 @@ function render(){
 }
 
 function renderResumen(){
-  const pendientes = state.orders.filter(o=>o.estatus!=='terminado').length;
+  const pedidosActivos = state.orders.filter(o=>!o.revisado);
+  const pedidosEnDiseno = pedidosActivos.filter(o=>o.estatus==='pendiente');
+  const pedidosEnProceso = pedidosActivos.filter(o=>o.estatus==='proceso');
+  const pedidosUrgentes = pedidosActivos.filter(o=>o.tipoPedido==='urgente');
   let porCobrar = 0;
-  if(currentRole==='admin') state.orders.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
+  if(currentRole==='admin') pedidosActivos.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
   const hoy = fechaLocalISO();
-  const entregasHoy = state.orders.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado');
+  const entregasHoy = pedidosActivos.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado');
 
   document.getElementById('resumen').innerHTML = `
-    <div class="summary-card"><div class="num">${pendientes}</div><div class="label">Pedidos activos</div></div>
+    <div class="summary-card">
+      <div class="num">${pedidosEnDiseno.length}</div>
+      <div class="label">Pedidos en diseño</div>
+      ${pedidosEnDiseno.length
+        ? `<div class="summary-order-list">${pedidosEnDiseno.map(order=>`
+            <button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}</button>
+          `).join('')}</div>`
+        : '<div class="summary-order-empty">Sin pedidos en diseño</div>'}
+    </div>
     ${currentRole==='admin'
       ? `<div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>`
-      : `<div class="summary-card"><div class="num">${state.orders.filter(o=>o.estatus==='terminado').length}</div><div class="label">Pedidos terminados</div></div>`}
+      : `<div class="summary-card">
+          <div class="num">${pedidosEnProceso.length}</div>
+          <div class="label">Pedidos en proceso</div>
+          ${pedidosEnProceso.length
+            ? `<div class="summary-order-list">${pedidosEnProceso.map(order=>`
+                <button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}</button>
+              `).join('')}</div>`
+            : '<div class="summary-order-empty">Sin pedidos en proceso</div>'}
+        </div>`}
+    <div class="summary-card">
+        <div class="num">${pedidosUrgentes.length}</div>
+        <div class="label">Pedidos urgentes</div>
+        ${pedidosUrgentes.length
+          ? `<div class="summary-order-list">${pedidosUrgentes.map(order=>`
+              <button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}</button>
+            `).join('')}</div>`
+          : '<div class="summary-order-empty">Sin pedidos urgentes</div>'}
+    </div>
     <div class="summary-card">
       <div class="num">${entregasHoy.length}</div>
       <div class="label">Entregas hoy</div>
       ${entregasHoy.length
-        ? `<div class="summary-delivery-list">${entregasHoy.map(order=>`
-            <button class="summary-delivery-order" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}${currentRole==='admin'?' · '+escapeHtml(order.cliente?.nombre||'Sin nombre'):''}</button>
+        ? `<div class="summary-order-list">${entregasHoy.map(order=>`
+            <button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(order.id))}">${String(order.folio).padStart(4,'0')}${currentRole==='admin'?' · '+escapeHtml(order.cliente?.nombre||'Sin nombre'):''}</button>
           `).join('')}</div>`
-        : '<div class="summary-delivery-empty">Sin entregas pendientes</div>'}
+        : '<div class="summary-order-empty">Sin entregas pendientes</div>'}
     </div>
   `;
 }
@@ -1009,7 +1064,7 @@ function programarActualizacionDiaria(){
 programarActualizacionDiaria();
 
 document.getElementById('resumen').addEventListener('click', event=>{
-  const botonPedido = event.target.closest('.summary-delivery-order');
+  const botonPedido = event.target.closest('.summary-order-link');
   if(!botonPedido) return;
   abrirPedido(botonPedido.dataset.orderId);
 });
@@ -1054,7 +1109,9 @@ function pasaFiltro(o){
 
 function renderLista(){
   const cont = document.getElementById('lista');
-  const items = [...state.orders].sort((a,b)=> b.folio - a.folio).filter(pasaFiltro);
+  const items = [...state.orders]
+    .sort((a,b)=> Number(Boolean(a.revisado))-Number(Boolean(b.revisado)) || b.folio-a.folio)
+    .filter(pasaFiltro);
 
   if(items.length===0){
     cont.innerHTML = `<div class="empty">
@@ -1078,23 +1135,35 @@ function renderLista(){
     const puedeRevisar = o.estatus==='terminado' && o.estatusPago==='pagado';
     return `
       <div class="order-card${o.revisado?' revisado':''}" onclick="abrirPedido('${o.id}')">
-        <input type="checkbox" class="order-check" ${o.revisado?'checked':''} ${puedeRevisar?'':'disabled'}
-          title="${puedeRevisar?'Marcar como revisado':'Solo disponible si está terminado y pagado'}"
-          onclick="event.stopPropagation()" onchange="alternarRevisado('${o.id}', this)">
-        <div class="order-top">
-          <div>
-            <div class="folio">Pedido ${String(o.folio).padStart(4,'0')}</div>
-            <div class="order-details">${detallesPedido||'<div class="order-detail-name">Sin detalles registrados</div>'}</div>
-            ${notasInternas?`<div class="order-notes"><span class="order-notes-label">Nota interna</span>${escapeHtml(notasInternas)}</div>`:''}
-            <div class="cliente-nombre">Cliente: ${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
-            ${restringido?'':`<div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`}
-            <div class="order-meta">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
+        <div class="order-review-control" onclick="event.stopPropagation()">
+          <label class="order-review-label">
+            Entregado
+            <input type="checkbox" class="order-check" ${o.revisado?'checked':''} ${puedeRevisar?'':'disabled'}
+              title="${puedeRevisar?'Marcar como revisado':'No disponible hasta que el pedido se marque como terminado y pagado'}"
+              onchange="alternarRevisado('${o.id}', this)">
+          </label>
+          ${puedeRevisar?'':'<div class="order-review-legend">No disponible hasta que el pedido se marque como terminado y pagado</div>'}
+        </div>
+        <div class="order-content-row">
+          <div class="order-content-main">
+            <div class="order-top">
+              <div>
+                <div class="folio">Pedido ${String(o.folio).padStart(4,'0')}</div>
+                <div class="order-details">${detallesPedido||'<div class="order-detail-name">Sin detalles registrados</div>'}</div>
+                ${notasInternas?`<div class="order-notes"><span class="order-notes-label">Nota interna</span>${escapeHtml(notasInternas)}</div>`:''}
+                <div class="cliente-nombre">Cliente: ${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
+                <div class="order-meta">Realizado: ${new Date(o.creado).toLocaleDateString('es-MX')}</div>
+                ${restringido?'':`<div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`}
+                <div class="order-meta">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
+              </div>
+              <div class="order-statuses">
+                <span class="pill ${o.estatus}">${estatusLabel}</span>
+                ${o.tipoPedido==='urgente' ? '<span class="pill urgente">Urgente</span>' : ''}
+                <span class="pill ${{pagado:'pagado', en_proceso:'pago-en-proceso'}[o.estatusPago] || 'pago-pendiente'}">Pago: ${ETIQUETAS_PAGO[o.estatusPago] || 'Pendiente'}</span>
+              </div>
+            </div>
           </div>
-          <div class="order-statuses">
-            <span class="pill ${o.estatus}">${estatusLabel}</span>
-            ${o.tipoPedido==='urgente' ? '<span class="pill urgente">Urgente</span>' : ''}
-            <span class="pill ${{pagado:'pagado', en_proceso:'pago-en-proceso'}[o.estatusPago] || 'pago-pendiente'}">Pago: ${ETIQUETAS_PAGO[o.estatusPago] || 'Pendiente'}</span>
-          </div>
+          ${o.imagenUrl?`<img class="order-image-thumb" src="${escapeHtml(o.imagenUrl)}" alt="Imagen del pedido ${String(o.folio).padStart(4,'0')}">`:''}
         </div>
         ${restringido?'':(()=>{
           const t = calcTotales(o);
@@ -1123,9 +1192,19 @@ async function alternarRevisado(id, checkbox){
   const valor = checkbox.checked;
   checkbox.disabled = true;
   try{
+    if(valor && pedido.imagenPath){
+      const {error:deleteError} = await supabaseClient.storage
+        .from('imagenes-pedidos')
+        .remove([pedido.imagenPath]);
+      if(deleteError) throw deleteError;
+    }
     const {data, error} = await supabaseClient.rpc('marcar_pedido_revisado', {p_pedido_id:id, p_revisado:valor});
     if(error) throw error;
     pedido.revisado = Boolean(data);
+    if(valor){
+      pedido.imagenPath = null;
+      pedido.imagenUrl = null;
+    }
   }catch(error){
     await avisar('No se pudo actualizar la casilla. ' + (error.message || ''));
   }
@@ -1217,19 +1296,24 @@ function nuevoPedidoVacio(){
     metodoPago:'',
     tipoPedido:'normal',
     domicilioEntrega:'',
-    facturacion:{
-      razonSocial:'', rfc:'', regimenFiscal:'', nombreComercial:'',
-      calle:'', numero:'', colonia:'', codigoPostal:'', municipio:'', estado:''
-    }
   };
 }
 
 const ATENDIDO_POR_OPCIONES = ['Cristian', 'Anael'];
 let draftOrder = null;
+let imagenPedidoSeleccionada = null;
+let imagenPreviewUrl = null;
+
+function limpiarSeleccionImagen(){
+  imagenPedidoSeleccionada = null;
+  if(imagenPreviewUrl) URL.revokeObjectURL(imagenPreviewUrl);
+  imagenPreviewUrl = null;
+}
 
 function abrirNuevo(){
   if(currentRole!=='admin' && currentRole!=='empleado') return;
   editingId = null;
+  limpiarSeleccionImagen();
   draftOrder = nuevoPedidoVacio();
   document.getElementById('drawerTitulo').textContent = 'Nuevo pedido — '+String(draftOrder.folio).padStart(4,'0');
   renderForm();
@@ -1240,7 +1324,6 @@ function normalizarPedido(o){
   if(!o.cliente) o.cliente = {nombre:'', whatsapp:'', correo:''};
   if(o.cliente.nombre===undefined) o.cliente.nombre = '';
   if(o.cliente.correo===undefined) o.cliente.correo = '';
-  if(!o.facturacion) o.facturacion = {razonSocial:'', rfc:'', regimenFiscal:'', nombreComercial:'', calle:'', numero:'', colonia:'', codigoPostal:'', municipio:'', estado:''};
   if(!o.estatusPago) o.estatusPago = 'pendiente';
   if(o.atendidoPor===undefined) o.atendidoPor = '';
   if(o.metodoPago===undefined) o.metodoPago = '';
@@ -1254,6 +1337,7 @@ function normalizarPedido(o){
 
 function abrirPedido(id){
   editingId = id;
+  limpiarSeleccionImagen();
   const o = state.orders.find(x=>x.id===id);
   draftOrder = normalizarPedido(JSON.parse(JSON.stringify(o)));
   document.getElementById('drawerTitulo').textContent = 'Editar pedido — '+String(o.folio).padStart(4,'0');
@@ -1291,17 +1375,12 @@ function buscarClienteRegistrado(campo, valor){
   }).sort((a,b)=>Number(b.folio||0)-Number(a.folio||0));
 
   if(!coincidencias.length) return null;
-  const perfil = {cliente:{nombre:'', whatsapp:'', correo:''}, facturacion:{}};
+  const perfil = {cliente:{nombre:'', whatsapp:'', correo:''}};
   const camposCliente = ['nombre', 'whatsapp', 'correo'];
-  const camposFacturacion = ['razonSocial', 'rfc', 'regimenFiscal', 'nombreComercial', 'calle', 'numero', 'colonia', 'codigoPostal', 'municipio', 'estado'];
   coincidencias.forEach(order=>{
     const cliente = order.cliente || {};
-    const facturacion = order.facturacion || {};
     camposCliente.forEach(campo=>{
       if(!perfil.cliente[campo] && cliente[campo]) perfil.cliente[campo] = cliente[campo];
-    });
-    camposFacturacion.forEach(campo=>{
-      if(!perfil.facturacion[campo] && facturacion[campo]) perfil.facturacion[campo] = facturacion[campo];
     });
   });
   return perfil;
@@ -1315,13 +1394,6 @@ function autocompletarDatosCliente(campo){
   document.getElementById('f_nombre').value = perfil.cliente.nombre;
   document.getElementById('f_wa').value = perfil.cliente.whatsapp;
   document.getElementById('f_correo').value = perfil.cliente.correo;
-  Object.entries({
-    razonSocial:'fc_razonSocial', rfc:'fc_rfc', regimenFiscal:'fc_regimenFiscal',
-    nombreComercial:'fc_nombreComercial', calle:'fc_calle', numero:'fc_numero',
-    colonia:'fc_colonia', codigoPostal:'fc_codigoPostal', municipio:'fc_municipio', estado:'fc_estado'
-  }).forEach(([campo, id])=>{
-    document.getElementById(id).value = perfil.facturacion[campo] || '';
-  });
 }
 
 function openDrawer(){
@@ -1345,8 +1417,7 @@ function renderForm(){
   const restringido = pedidoEmpleadoRestringido(o);
   const roAttr = soloLectura ? 'disabled' : '';
 
-  const f = o.facturacion || {};
-  const mostrarFacturacion = Object.values(f).some(valor=>String(valor||'').trim());
+  const imagenVisible = imagenPreviewUrl || o.imagenUrl || '';
 
   body.innerHTML = `
     ${restringido ? `
@@ -1377,9 +1448,20 @@ function renderForm(){
       <textarea id="f_domicilioEntrega" rows="2" placeholder="Dirección donde se entregará el pedido" ${roAttr}>${escapeHtml(o.domicilioEntrega||'')}</textarea>
     `}
 
+    ${o.revisado?`
+      <div class="section-title">Imagen del pedido</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Los pedidos marcados como revisados no admiten imágenes.</div>
+    `:`
+      <div class="section-title">Imagen del pedido (opcional)</div>
+      <label for="f_imagen">Agregar o reemplazar imagen</label>
+      <input id="f_imagen" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">JPG, PNG, WebP o GIF. Máximo 10 MB.</div>
+      <div id="imagenPedidoPreview">${imagenVisible?`<img class="order-image-preview" src="${escapeHtml(imagenVisible)}" alt="Vista previa de la imagen del pedido">`:''}</div>
+    `}
+
     <div class="section-title">Productos</div>
     <div id="prodsCont"></div>
-    <button class="add-prod" id="btnAddProd" ${roAttr}>+ Agregar producto</button>
+    ${!roAttr?'<button class="add-prod" id="btnAddProd">+ Agregar producto</button>':''}
     ${restringido && o.estatusPago!=='pagado' && Number(o.saldoPendiente)>0.009
       ? `<div class="employee-balance">Saldo pendiente: <strong>$${fmt(o.saldoPendiente)}</strong></div>`
       : ''}
@@ -1418,34 +1500,6 @@ function renderForm(){
     <div class="status-actions" id="tipoPedidoActions"></div>
 
     ${restringido ? '' : `
-      <div class="section-title">
-        <label class="billing-toggle" for="f_facturacion">
-          <input type="checkbox" id="f_facturacion" ${mostrarFacturacion?'checked':''} ${roAttr}>
-          Datos de facturación (opcional)
-        </label>
-      </div>
-      <div id="facturacionCampos" ${mostrarFacturacion?'':'hidden'}>
-        <label>Razón social</label>
-        <input id="fc_razonSocial" value="${escapeHtml(f.razonSocial)}" placeholder="Razón social" ${roAttr}>
-        <div class="row2">
-          <div><label>RFC</label><input id="fc_rfc" value="${escapeHtml(f.rfc)}" placeholder="RFC" ${roAttr}></div>
-          <div><label>Nombre comercial</label><input id="fc_nombreComercial" value="${escapeHtml(f.nombreComercial)}" placeholder="Nombre comercial" ${roAttr}></div>
-        </div>
-        <label>Régimen fiscal</label>
-        <input id="fc_regimenFiscal" value="${escapeHtml(f.regimenFiscal)}" placeholder="Ej. Régimen simplificado" ${roAttr}>
-        <label>Calle</label>
-        <input id="fc_calle" value="${escapeHtml(f.calle)}" placeholder="Calle" ${roAttr}>
-        <div class="row2">
-          <div><label>Número</label><input id="fc_numero" value="${escapeHtml(f.numero)}" placeholder="Número" ${roAttr}></div>
-          <div><label>Colonia</label><input id="fc_colonia" value="${escapeHtml(f.colonia)}" placeholder="Colonia" ${roAttr}></div>
-        </div>
-        <div class="row2">
-          <div><label>Código postal</label><input id="fc_codigoPostal" value="${escapeHtml(f.codigoPostal)}" placeholder="C.P." ${roAttr}></div>
-          <div><label>Municipio</label><input id="fc_municipio" value="${escapeHtml(f.municipio)}" placeholder="Municipio" ${roAttr}></div>
-        </div>
-        <label>Estado</label>
-        <input id="fc_estado" value="${escapeHtml(f.estado)}" placeholder="Estado" ${roAttr}>
-      </div>
       <label>Notas internas (opcional)</label>
       <textarea id="f_notas" rows="2" placeholder="Detalles, colores, medidas..." ${roAttr}>${escapeHtml(o.notas)}</textarea>
     `}
@@ -1472,20 +1526,45 @@ function renderForm(){
   renderPaymentStatusActions();
   renderTipoPedidoActions();
 
-  document.getElementById('btnAddProd').addEventListener('click', ()=>{
+  const btnAddProd = document.getElementById('btnAddProd');
+  if(btnAddProd) btnAddProd.addEventListener('click', ()=>{
     draftOrder.productos.push({desc:'',cantidad:1,precio:0});
     renderProductos(); renderTotales();
   });
   document.getElementById('btnGuardar').addEventListener('click', guardarDesdeForm);
+  const inputImagen = document.getElementById('f_imagen');
+  if(inputImagen){
+    inputImagen.addEventListener('change', async ()=>{
+      const archivo = inputImagen.files[0];
+      if(!archivo) return;
+      if(draftOrder.revisado){
+        inputImagen.value = '';
+        await avisar('No se pueden agregar imágenes a un pedido marcado como revisado.');
+        return;
+      }
+      if(!['image/jpeg','image/png','image/webp','image/gif'].includes(archivo.type)){
+        inputImagen.value = '';
+        await avisar('Selecciona una imagen JPG, PNG, WebP o GIF.');
+        return;
+      }
+      if(archivo.size > 10 * 1024 * 1024){
+        inputImagen.value = '';
+        await avisar('La imagen no puede superar los 10 MB.');
+        return;
+      }
+      if(imagenPreviewUrl) URL.revokeObjectURL(imagenPreviewUrl);
+      imagenPedidoSeleccionada = archivo;
+      imagenPreviewUrl = URL.createObjectURL(archivo);
+      document.getElementById('imagenPedidoPreview').innerHTML =
+        `<img class="order-image-preview" src="${imagenPreviewUrl}" alt="Vista previa de la imagen del pedido">`;
+    });
+  }
   if(!restringido){
     document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
     document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
     document.getElementById('btnWA').addEventListener('click', abrirWhatsapp);
     document.getElementById('f_nombre').addEventListener('change', ()=>autocompletarDatosCliente('nombre'));
     document.getElementById('f_wa').addEventListener('change', ()=>autocompletarDatosCliente('whatsapp'));
-    document.getElementById('f_facturacion').addEventListener('change', e=>{
-      document.getElementById('facturacionCampos').hidden = !e.target.checked;
-    });
     document.getElementById('f_iva').addEventListener('change', e=>{draftOrder.ivaAplica=e.target.checked; renderTotales();});
     document.getElementById('f_anticipo').addEventListener('input', e=>{draftOrder.anticipo=e.target.value; renderTotales();});
   }
@@ -1496,10 +1575,19 @@ function renderForm(){
       const ok = await confirmar('¿Eliminar este pedido? No se puede deshacer.');
       if(ok){
         try{
+          const imagenPath = draftOrder.imagenPath;
           const {error} = await supabaseClient.from('pedidos').delete().eq('id', editingId);
           if(error) throw error;
           state.orders = state.orders.filter(x=>x.id!==editingId);
           render(); closeDrawer();
+          if(imagenPath){
+            const {error:imageError} = await supabaseClient.storage.from('imagenes-pedidos').remove([imagenPath]);
+            if(imageError){
+              console.error('No se pudo eliminar la imagen del pedido eliminado:', imageError);
+              await avisar('El pedido se eliminó, pero no se pudo borrar su imagen de Storage. ' + imageError.message);
+              return;
+            }
+          }
           toast('Pedido eliminado');
         }catch(e){
           await avisar('No se pudo eliminar el pedido. Detalle: ' + (e && e.message ? e.message : e));
@@ -1511,7 +1599,7 @@ function renderForm(){
 
 function renderProductos(){
   const cont = document.getElementById('prodsCont');
-  const roAttr = (currentRole==='empleado' && editingId) ? 'disabled' : '';
+  const roAttr = currentRole==='empleado' && editingId ? 'disabled' : '';
   const mostrarMontos = !pedidoEmpleadoRestringido(draftOrder);
   cont.innerHTML = draftOrder.productos.map((p,i)=>`
     <div class="prod-row" data-i="${i}">
@@ -1554,7 +1642,8 @@ function actualizarSubtotalFila(i){
   if(!row) return;
   const p = draftOrder.productos[i];
   const sub = (Number(p.cantidad)||0)*(Number(p.precio)||0);
-  row.querySelector('.p-sub').value = `$${fmt(sub)}`;
+  const subtotal = row.querySelector('.p-sub');
+  if(subtotal) subtotal.value = `$${fmt(sub)}`;
 }
 
 function renderTotales(){
@@ -1632,18 +1721,6 @@ function leerFormAlDraft(){
   draftOrder.domicilioEntrega = document.getElementById('f_domicilioEntrega').value.trim();
   draftOrder.metodoPago = document.getElementById('f_metodoPago').value;
   draftOrder.notas = document.getElementById('f_notas').value.trim();
-
-  if(!draftOrder.facturacion) draftOrder.facturacion = {};
-  draftOrder.facturacion.nombreComercial = document.getElementById('fc_nombreComercial').value.trim();
-  draftOrder.facturacion.razonSocial = document.getElementById('fc_razonSocial').value.trim();
-  draftOrder.facturacion.rfc = document.getElementById('fc_rfc').value.trim();
-  draftOrder.facturacion.regimenFiscal = document.getElementById('fc_regimenFiscal').value.trim();
-  draftOrder.facturacion.calle = document.getElementById('fc_calle').value.trim();
-  draftOrder.facturacion.numero = document.getElementById('fc_numero').value.trim();
-  draftOrder.facturacion.colonia = document.getElementById('fc_colonia').value.trim();
-  draftOrder.facturacion.codigoPostal = document.getElementById('fc_codigoPostal').value.trim();
-  draftOrder.facturacion.municipio = document.getElementById('fc_municipio').value.trim();
-  draftOrder.facturacion.estado = document.getElementById('fc_estado').value.trim();
 }
 
 function toast(msg){
@@ -1677,14 +1754,69 @@ async function guardarDesdeForm(){
       await avisar('Selecciona una opción válida en "Atendido por".');
       return;
     }
-    const pedidoGuardado = await guardarPedidoEnSupabase(draftOrder, esNuevo);
+    if(draftOrder.revisado && imagenPedidoSeleccionada){
+      await avisar('No se pueden agregar imágenes a un pedido marcado como revisado.');
+      return;
+    }
+    const imagenAnterior = esNuevo ? null : state.orders.find(x=>x.id===draftOrder.id)?.imagenPath;
+    let imagenNuevaSubida = null;
+    if(imagenPedidoSeleccionada){
+      const extensiones = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'};
+      const aleatorio = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
+      imagenNuevaSubida = `${draftOrder.id}/${Date.now()}-${aleatorio}.${extensiones[imagenPedidoSeleccionada.type]}`;
+      const {error:uploadError} = await supabaseClient.storage
+        .from('imagenes-pedidos')
+        .upload(imagenNuevaSubida, imagenPedidoSeleccionada, {
+          contentType:imagenPedidoSeleccionada.type,
+          cacheControl:'3600',
+          upsert:false
+        });
+      if(uploadError) throw uploadError;
+      draftOrder.imagenPath = imagenNuevaSubida;
+    }
+
+    let pedidoGuardado;
+    try{
+      pedidoGuardado = await guardarPedidoEnSupabase(draftOrder, esNuevo);
+    }catch(error){
+      if(imagenNuevaSubida){
+        const {error:cleanupError} = await supabaseClient.storage.from('imagenes-pedidos').remove([imagenNuevaSubida]);
+        if(cleanupError){
+          console.error('No se pudo limpiar la imagen después de fallar el guardado:', cleanupError);
+          throw new Error(`${error.message || error} No se pudo limpiar el archivo subido: ${cleanupError.message}`);
+        }
+      }
+      throw error;
+    }
+    let avisoImagen = '';
+    if(pedidoGuardado.imagenPath){
+      const {data:imageData, error:imageUrlError} = await supabaseClient.storage
+        .from('imagenes-pedidos')
+        .createSignedUrl(pedidoGuardado.imagenPath, 86400);
+      if(imageUrlError){
+        console.error('El pedido se guardó, pero no se pudo generar el enlace de su imagen:', imageUrlError);
+        avisoImagen = ` No se pudo mostrar su imagen: ${imageUrlError.message}`;
+      }else{
+        pedidoGuardado.imagenUrl = imageData.signedUrl;
+      }
+    }
     const idx = state.orders.findIndex(x=>x.id===pedidoGuardado.id);
     if(idx===-1) state.orders.push(pedidoGuardado);
     else state.orders[idx] = pedidoGuardado;
+    let errorImagenAnterior = '';
+    if(imagenAnterior && imagenAnterior!==pedidoGuardado.imagenPath){
+      const {error:deleteError} = await supabaseClient.storage.from('imagenes-pedidos').remove([imagenAnterior]);
+      if(deleteError){
+        console.error('No se pudo eliminar la imagen anterior del pedido:', deleteError);
+        errorImagenAnterior = ` No se pudo eliminar la imagen anterior: ${deleteError.message}`;
+      }
+    }
+    limpiarSeleccionImagen();
     editingId = pedidoGuardado.id;
     render();
     closeDrawer();
-    toast('Pedido guardado ✓');
+    if(errorImagenAnterior || avisoImagen) await avisar('El pedido se guardó.' + avisoImagen + errorImagenAnterior);
+    else toast('Pedido guardado ✓');
   }catch(e){
     console.error('Error al guardar pedido:', e);
     await avisar('No se pudo guardar el pedido. Detalle: ' + (e && e.message ? e.message : e));
@@ -1928,11 +2060,9 @@ function exportarExcel(){
   }
   const pedidosRows = [];
   const detalleRows = [];
-  const facturacionRows = [];
 
   [...state.orders].sort((a,b)=>a.folio-b.folio).forEach(o=>{
     const t = calcTotales(o);
-    const f = o.facturacion || {};
     pedidosRows.push({
       'Folio': String(o.folio).padStart(4,'0'),
       'Fecha creado': new Date(o.creado).toLocaleDateString('es-MX'),
@@ -1950,22 +2080,6 @@ function exportarExcel(){
       'Saldo pendiente': Number(t.saldo.toFixed(2)),
       'Notas': o.notas
     });
-    if(f.razonSocial || f.rfc){
-      facturacionRows.push({
-        'Folio': String(o.folio).padStart(4,'0'),
-        'Cliente': o.cliente.nombre,
-        'Nombre comercial': f.nombreComercial||'',
-        'Razón social': f.razonSocial||'',
-        'RFC': f.rfc||'',
-        'Régimen fiscal': f.regimenFiscal||'',
-        'Calle': f.calle||'',
-        'Número': f.numero||'',
-        'Colonia': f.colonia||'',
-        'Código postal': f.codigoPostal||'',
-        'Municipio': f.municipio||'',
-        'Estado': f.estado||''
-      });
-    }
     o.productos.forEach(p=>{
       detalleRows.push({
         'Folio': String(o.folio).padStart(4,'0'),
@@ -1983,10 +2097,6 @@ function exportarExcel(){
   const wsDetalle = XLSX.utils.json_to_sheet(detalleRows);
   XLSX.utils.book_append_sheet(wb, wsPedidos, 'Pedidos');
   XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle productos');
-  if(facturacionRows.length>0){
-    const wsFacturacion = XLSX.utils.json_to_sheet(facturacionRows);
-    XLSX.utils.book_append_sheet(wb, wsFacturacion, 'Facturación');
-  }
 
   const hoy = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `pedidos-ya-viste-${hoy}.xlsx`);

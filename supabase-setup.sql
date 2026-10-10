@@ -36,6 +36,9 @@ begin
   if new.estatus <> 'terminado' or new.estatus_pago <> 'pagado' then
     new.revisado := false;
   end if;
+  if new.revisado and coalesce(new.datos ? 'imagenPath', false) then
+    raise exception 'No se pueden asociar imagenes a un pedido marcado como revisado.';
+  end if;
   return new;
 end;
 $$;
@@ -147,6 +150,44 @@ $$;
 grant execute on function public.current_staff_role() to authenticated;
 revoke all on function public.current_staff_role() from public, anon;
 
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'imagenes-pedidos',
+  'imagenes-pedidos',
+  false,
+  10485760,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+on conflict (id) do update
+set name = excluded.name,
+    public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Staff can read order images" on storage.objects;
+create policy "Staff can read order images"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'imagenes-pedidos'
+  and public.current_staff_role() in ('admin', 'empleado')
+);
+
+drop policy if exists "Staff can upload order images" on storage.objects;
+create policy "Staff can upload order images"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'imagenes-pedidos'
+  and public.current_staff_role() in ('admin', 'empleado')
+);
+
+drop policy if exists "Staff can delete order images" on storage.objects;
+create policy "Staff can delete order images"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'imagenes-pedidos'
+  and public.current_staff_role() in ('admin', 'empleado')
+);
+
 drop policy if exists "Staff can read own role" on public.staff_roles;
 create policy "Staff can read own role"
 on public.staff_roles for select to authenticated
@@ -160,6 +201,9 @@ using (public.current_staff_role() = 'admin');
 
 drop function if exists public.pedidos_para_empleado();
 drop function if exists public.actualizar_estatus_pedido(text, text, text);
+drop function if exists public.actualizar_estatus_pedido(text, text, text, text);
+drop function if exists public.actualizar_estatus_pedido(text, text, text, boolean);
+drop function if exists public.actualizar_estatus_pedido(text, text, text, text, jsonb);
 drop function if exists public.datos_pedido_para_empleado(jsonb, text, text);
 drop function if exists public.datos_pedido_para_empleado(jsonb, text);
 drop function if exists public.datos_pedido_para_empleado(jsonb);
@@ -275,10 +319,14 @@ using (public.current_staff_role() = 'admin')
 with check (public.current_staff_role() = 'admin');
 
 drop function if exists public.actualizar_estatus_pedido(text, text, text);
+drop function if exists public.actualizar_estatus_pedido(text, text, text, text);
+drop function if exists public.actualizar_estatus_pedido(text, text, text, boolean);
+drop function if exists public.actualizar_estatus_pedido(text, text, text, text, jsonb);
 create function public.actualizar_estatus_pedido(
   p_pedido_id text,
   p_nuevo_estatus text,
-  p_nuevo_estatus_pago text
+  p_nuevo_estatus_pago text,
+  p_nueva_imagen_path text
 )
 returns jsonb
 language plpgsql
@@ -298,6 +346,10 @@ begin
   if p_nuevo_estatus_pago is null or p_nuevo_estatus_pago not in ('pendiente', 'en_proceso', 'pagado') then
     raise exception 'Estatus de pago no valido.';
   end if;
+  if p_nueva_imagen_path is not null
+    and left(p_nueva_imagen_path, length(p_pedido_id) + 1) <> (p_pedido_id || '/') then
+    raise exception 'La imagen no pertenece al pedido solicitado.';
+  end if;
 
   select pedido.estatus_pago into pago_actual
   from public.pedidos as pedido
@@ -312,7 +364,11 @@ begin
 
   update public.pedidos as pedido
   set estatus = p_nuevo_estatus,
-      estatus_pago = p_nuevo_estatus_pago
+      estatus_pago = p_nuevo_estatus_pago,
+      datos = case
+        when p_nueva_imagen_path is null then pedido.datos - 'imagenPath'
+        else jsonb_set(pedido.datos, '{imagenPath}', to_jsonb(p_nueva_imagen_path), true)
+      end
   where pedido.id = p_pedido_id
   returning pedido.* into pedido_actualizado;
 
@@ -332,8 +388,8 @@ begin
 end;
 $$;
 
-revoke all on function public.actualizar_estatus_pedido(text, text, text) from public, anon;
-grant execute on function public.actualizar_estatus_pedido(text, text, text) to authenticated;
+revoke all on function public.actualizar_estatus_pedido(text, text, text, text) from public, anon;
+grant execute on function public.actualizar_estatus_pedido(text, text, text, text) to authenticated;
 
 drop function if exists public.marcar_pedido_revisado(text, boolean);
 create function public.marcar_pedido_revisado(p_pedido_id text, p_revisado boolean)
@@ -350,7 +406,11 @@ begin
   end if;
 
   update public.pedidos as pedido
-  set revisado = coalesce(p_revisado, false)
+  set revisado = coalesce(p_revisado, false),
+      datos = case
+        when coalesce(p_revisado, false) then pedido.datos - 'imagenPath'
+        else pedido.datos
+      end
   where pedido.id = p_pedido_id
     and (not coalesce(p_revisado, false) or (pedido.estatus = 'terminado' and pedido.estatus_pago = 'pagado'))
   returning pedido.revisado into valor_guardado;
