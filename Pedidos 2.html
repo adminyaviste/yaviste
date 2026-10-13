@@ -649,7 +649,7 @@
     <div class="date-filter">
       <label>Creado desde <input id="fechaDesde" type="date"></label>
       <label>hasta <input id="fechaHasta" type="date"></label>
-      <button type="button" class="chip" id="limpiarFechas" style="display:none;">Quitar fechas</button>
+      <button type="button" class="chip" id="limpiarFechas" style="display:none;">Quitar filtros</button>
     </div>
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
@@ -1041,9 +1041,17 @@ function renderResumen(){
   if(currentRole==='admin'){
     pedidosActivos.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
     state.orders.forEach(order=>{
-      if(esFechaLocalHoy(order.creado, hoy)) ingresosHoy += Number(order.anticipo)||0;
-      if(order.estatusPago==='pagado' && esFechaLocalHoy(order.pagoMarcadoEn, hoy)){
-        ingresosHoy += Math.max(0, calcTotales(order).total - (Number(order.anticipo)||0));
+      const creadoHoy = esFechaLocalHoy(order.creado, hoy);
+      const pagadoHoy = order.estatusPago==='pagado' && esFechaLocalHoy(order.pagoMarcadoEn, hoy);
+      const total = Math.max(0, calcTotales(order).total);
+      const anticipo = Math.min(total, Math.max(0, Number(order.anticipo)||0));
+      const saldo = total - anticipo;
+
+      if(creadoHoy && order.estatusPago==='pagado'){
+        ingresosHoy += total;
+      }else{
+        if(creadoHoy) ingresosHoy += anticipo;
+        if(pagadoHoy) ingresosHoy += saldo;
       }
     });
   }
