@@ -9,6 +9,7 @@ create table if not exists public.pedidos (
   creado timestamptz not null default now(),
   estatus text not null default 'pendiente' check (estatus in ('pendiente', 'proceso', 'terminado')),
   estatus_pago text not null default 'pendiente' check (estatus_pago in ('pendiente', 'en_proceso', 'pagado')),
+  pago_marcado_en timestamptz,
   datos jsonb not null,
   cliente_telefono text generated always as (
     case
@@ -25,7 +26,40 @@ create table if not exists public.pedidos (
 alter table public.pedidos add column if not exists estatus_pago text not null default 'pendiente'
   check (estatus_pago in ('pendiente', 'en_proceso', 'pagado'));
 
+alter table public.pedidos add column if not exists pago_marcado_en timestamptz;
+
 alter table public.pedidos add column if not exists revisado boolean not null default false;
+
+create or replace function public.registrar_fecha_pago_pedido()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.estatus_pago = 'pagado' then
+      new.pago_marcado_en := coalesce(new.pago_marcado_en, now());
+    else
+      new.pago_marcado_en := null;
+    end if;
+  elsif new.estatus_pago is distinct from old.estatus_pago then
+    if new.estatus_pago = 'pagado' then
+      new.pago_marcado_en := now();
+    else
+      new.pago_marcado_en := null;
+    end if;
+  else
+    new.pago_marcado_en := old.pago_marcado_en;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists registrar_fecha_pago_pedido on public.pedidos;
+create trigger registrar_fecha_pago_pedido
+before insert or update on public.pedidos
+for each row execute function public.registrar_fecha_pago_pedido();
+revoke all on function public.registrar_fecha_pago_pedido() from public, anon, authenticated;
 
 create or replace function public.limpiar_revisado_pedido()
 returns trigger

@@ -121,10 +121,42 @@
   .date-filter input[type="date"]{width:auto;height:38px;padding:0 8px;border:1.5px solid var(--line);border-radius:8px;font:inherit;font-weight:500;color:var(--ink);background:var(--paper-2);}
   .date-filter .chip{height:38px;}
   @media (max-width:700px){
+    header.app{padding:12px 14px;align-items:flex-start;flex-wrap:wrap;}
+    header.app .brand{min-width:0;}
+    header.app h1{font-size:15px;}
+    header.app > div:last-child{width:100%;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px!important;}
+    header.app > div:last-child .btn{justify-content:center;min-width:0;padding:9px 8px;font-size:12px;}
+    main{padding:14px 10px 64px;}
     .search-cliente{max-width:none;flex-basis:100%;}
-    .date-filter{margin-left:0;width:100%;}
-    .order-image-thumb{width:68px;height:68px;flex-basis:68px;margin-top:22px;}
+    .date-filter{margin-left:0;width:100%;gap:8px;}
+    .date-filter label{flex:1;justify-content:space-between;gap:5px;}
+    .date-filter input[type="date"]{min-width:0;flex:1;padding:0 5px;}
+    .filters{flex-wrap:nowrap;overflow-x:auto;padding:1px 0 5px;scrollbar-width:none;}
+    .filters::-webkit-scrollbar{display:none;}
+    .filters .chip{flex:0 0 auto;}
     .summary-row{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .summary-row{gap:8px;margin-bottom:14px;}
+    .summary-card{padding:10px 11px;}
+    .summary-card .num{font-size:18px;}
+    .order-card{padding:12px;margin-bottom:8px;border-radius:10px;}
+    .order-review-control{margin-bottom:5px;}
+    .order-review-label{font-size:11px;}
+    .order-review-legend{max-width:190px;font-size:10px;}
+    .order-content-row{display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:8px;}
+    .order-image-thumb{width:60px;height:60px;flex-basis:60px;margin:2px 0 0;}
+    .order-top{display:block;padding-right:0;}
+    .folio{font-size:20px;}
+    .order-statuses{justify-content:flex-start;margin-top:8px;gap:5px;}
+    .pill{font-size:10px;padding:4px 8px;}
+    .order-details{margin-top:7px;padding:7px 8px;}
+    .order-detail{font-size:12px;gap:6px;}
+    .order-detail-quantity{font-size:11px;}
+    .cliente-nombre{font-size:12px;}
+    .order-meta{font-size:11px;line-height:1.35;}
+    .order-notes{font-size:11.5px;padding:7px 8px;}
+    .order-money{font-size:12px;gap:8px;}
+    .employee-balance{margin-top:8px;padding:8px 10px;font-size:12px;}
+    .order-edit-hint{font-size:10px;margin-top:5px;}
   }
   .chip{
     border:1.5px solid var(--line);
@@ -886,7 +918,7 @@ async function loadState(){
     data = resultado.data;
   }else{
     const resultado = await supabaseClient.from('pedidos')
-      .select('id, folio, creado, estatus, estatus_pago, revisado, datos').order('folio', {ascending:false});
+      .select('id, folio, creado, estatus, estatus_pago, pago_marcado_en, revisado, datos').order('folio', {ascending:false});
     if(resultado.error) throw resultado.error;
     data = resultado.data;
   }
@@ -916,7 +948,7 @@ async function loadState(){
       const {error:sequenceError} = await supabaseClient.rpc('sincronizar_folio_pedidos');
       if(sequenceError) throw sequenceError;
       const refreshed = await supabaseClient.from('pedidos')
-        .select('id, folio, creado, estatus, estatus_pago, revisado, datos').order('folio', {ascending:false});
+        .select('id, folio, creado, estatus, estatus_pago, pago_marcado_en, revisado, datos').order('folio', {ascending:false});
       if(refreshed.error) throw refreshed.error;
       data = refreshed.data;
     }
@@ -942,11 +974,12 @@ async function loadState(){
 
 function pedidoDesdeFila(row){
   return {...row.datos, id:row.id, folio:Number(row.folio), creado:row.creado, estatus:row.estatus,
-    estatusPago:row.estatus_pago || 'pendiente', revisado:Boolean(row.revisado)};
+    estatusPago:row.estatus_pago || 'pendiente', pagoMarcadoEn:row.pago_marcado_en || null,
+    revisado:Boolean(row.revisado)};
 }
 
 function filaDesdePedido(order, incluirFolio=false){
-  const {id, folio, creado, estatus, estatusPago, revisado, imagenUrl, facturacion, ...datos} = order;
+  const {id, folio, creado, estatus, estatusPago, pagoMarcadoEn, revisado, imagenUrl, facturacion, ...datos} = order;
   const row = {id, creado, estatus, estatus_pago:estatusPago || 'pendiente', datos};
   if(incluirFolio) row.folio = folio;
   return row;
@@ -975,10 +1008,10 @@ async function guardarPedidoEnSupabase(order, esNuevo){
   }
   if(esNuevo){
     resultado = await supabaseClient.from('pedidos').insert(filaDesdePedido(order, true))
-      .select('id, folio, creado, estatus, estatus_pago, revisado, datos').single();
+      .select('id, folio, creado, estatus, estatus_pago, pago_marcado_en, revisado, datos').single();
   }else{
     resultado = await supabaseClient.from('pedidos').update(filaDesdePedido(order))
-      .eq('id', order.id).select('id, folio, creado, estatus, estatus_pago, revisado, datos').single();
+      .eq('id', order.id).select('id, folio, creado, estatus, estatus_pago, pago_marcado_en, revisado, datos').single();
   }
   if(resultado.error) throw resultado.error;
   return pedidoDesdeFila(resultado.data);
@@ -1003,8 +1036,17 @@ function renderResumen(){
   const pedidosEnProceso = pedidosActivos.filter(o=>o.estatus==='proceso');
   const pedidosUrgentes = pedidosActivos.filter(o=>o.tipoPedido==='urgente');
   let porCobrar = 0;
-  if(currentRole==='admin') pedidosActivos.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
   const hoy = fechaLocalISO();
+  let ingresosHoy = 0;
+  if(currentRole==='admin'){
+    pedidosActivos.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
+    state.orders.forEach(order=>{
+      if(esFechaLocalHoy(order.creado, hoy)) ingresosHoy += Number(order.anticipo)||0;
+      if(order.estatusPago==='pagado' && esFechaLocalHoy(order.pagoMarcadoEn, hoy)){
+        ingresosHoy += Math.max(0, calcTotales(order).total - (Number(order.anticipo)||0));
+      }
+    });
+  }
   const entregasHoy = pedidosActivos.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado');
 
   document.getElementById('resumen').innerHTML = `
@@ -1047,11 +1089,20 @@ function renderResumen(){
     ${currentRole==='admin'
       ? `<div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>`
       : ''}
+    ${currentRole==='admin'
+      ? `<div class="summary-card"><div class="num">$${fmt(ingresosHoy)}</div><div class="label">Ingresos de hoy</div></div>`
+      : ''}
   `;
 }
 
 function fechaLocalISO(fecha=new Date()){
   return [fecha.getFullYear(), String(fecha.getMonth()+1).padStart(2,'0'), String(fecha.getDate()).padStart(2,'0')].join('-');
+}
+
+function esFechaLocalHoy(fecha, hoy=fechaLocalISO()){
+  if(!fecha) return false;
+  const fechaParseada = new Date(fecha);
+  return !Number.isNaN(fechaParseada.getTime()) && fechaLocalISO(fechaParseada)===hoy;
 }
 
 function programarActualizacionDiaria(){
@@ -1154,6 +1205,9 @@ function renderLista(){
                 ${notasInternas?`<div class="order-notes"><span class="order-notes-label">Nota interna</span>${escapeHtml(notasInternas)}</div>`:''}
                 <div class="cliente-nombre">Cliente: ${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
                 <div class="order-meta">Realizado: ${new Date(o.creado).toLocaleDateString('es-MX')}</div>
+                ${currentRole==='admin' && o.pagoMarcadoEn
+                  ? `<div class="order-meta">Pagado el: ${new Date(o.pagoMarcadoEn).toLocaleDateString('es-MX')}</div>`
+                  : ''}
                 ${restringido?'':`<div class="order-meta">Entrega: ${o.fechaEntrega || 'sin definir'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`}
                 <div class="order-meta">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
               </div>

@@ -29,6 +29,6 @@ Solo agrega cuentas confiables. La aplicacion nunca necesita la clave `service_r
 
 La consulta publica acepta el folio mostrado en la nota del pedido (por ejemplo, `#123456`); el signo `#` es opcional. Los folios de pedidos nuevos son numericos aleatorios de 6 cifras. Los folios ya emitidos (incluidos los de 10 cifras) se conservan para que las notas anteriores sigan funcionando. Quien conozca un folio puede ver el resumen de ese pedido; la aplicacion no expone notas, datos personales de facturacion ni el detalle completo del pedido en la consulta publica.
 
-Al cambiar la consulta pública, guardar/consultar/editar/eliminar cotizaciones o los permisos y funciones del personal, vuelve a ejecutar todo `supabase-setup.sql` en SQL Editor para actualizar las tablas, permisos y funciones disponibles.
+Al cambiar la consulta pública, guardar/consultar/editar/eliminar cotizaciones, los permisos y funciones del personal o el registro de cuándo se marca un pedido como pagado, vuelve a ejecutar todo `supabase-setup.sql` en SQL Editor para actualizar las tablas, permisos y funciones disponibles.
 
 Publica el sitio bajo HTTP o HTTPS para que el navegador pueda cargar la configuracion y completar la autenticacion. Al iniciar sesion como administrador, la pagina ofrece importar los pedidos antiguos guardados en ese navegador si aun no estan en Supabase.
