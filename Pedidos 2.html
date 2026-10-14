@@ -177,8 +177,8 @@
   .entrega-timer.pronto{color:#C79100;}
   .entrega-timer.critico,.entrega-timer.vencido{color:#C62828;}
   .chip[data-f="debe"]{margin-left:0;}
-  .chip[data-f="pendiente"],.chip[data-f="proceso"],.chip[data-f="pago_en_proceso"]{border-color:#E0A800;color:#8A6500;background:#FFF6D1;}
-  .chip[data-f="pendiente"].active,.chip[data-f="proceso"].active,.chip[data-f="pago_en_proceso"].active{background:#F5C518;border-color:#E0A800;color:#3B2F00;}
+  .chip[data-f="pendiente"],.chip[data-f="proceso"],.chip[data-f="pago_en_proceso"],.chip[data-f="anticipo_recibido"]{border-color:#E0A800;color:#8A6500;background:#FFF6D1;}
+  .chip[data-f="pendiente"].active,.chip[data-f="proceso"].active,.chip[data-f="pago_en_proceso"].active,.chip[data-f="anticipo_recibido"].active{background:#F5C518;border-color:#E0A800;color:#3B2F00;}
   .chip[data-f="proceso"]{border-color:#1976D2;color:#1565C0;background:#E8F1FF;}
   .chip[data-f="proceso"].active{background:#1976D2;border-color:#1976D2;color:#fff;}
   .chip[data-f="terminado"],.chip[data-f="pagado"]{border-color:#1E8E3E;color:#1E8E3E;background:#E6F4EA;}
@@ -213,6 +213,22 @@
     margin-bottom:10px;
     cursor:pointer;
     position:relative;
+  }
+  .common-order-card{
+    background:#F1F2F0;
+    border:1px solid #E1E3DF;
+    border-radius:10px;
+    padding:12px 15px;
+    margin-bottom:8px;
+    color:#5D625E;
+  }
+  .common-order-title{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#777D78;}
+  .common-order-product{margin-top:3px;font-size:14px;font-weight:600;color:#424844;overflow-wrap:anywhere;}
+  .common-order-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:5px;font-size:11.5px;color:#707671;}
+  @media(max-width:700px){
+    .common-order-card{padding:10px 12px;margin-bottom:7px;}
+    .common-order-product{font-size:13px;}
+    .common-order-meta{font-size:11px;}
   }
   .order-check{
     width:20px;
@@ -308,6 +324,7 @@
   #btnExportar:hover{background:#17712F;border-color:#17712F;}
   .pill.urgente{background:#FDE0E0;color:#B3261E;}
   .pill.pago-en-proceso{background:#DDEFFB;color:#0B4F6C;}
+  .pill.anticipo-recibido{background:#FFF2CC;color:#785B00;}
   .pill.pagado{background:#DEF4E8;color:#1E7A46;}
   .order-statuses{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
   .order-money{
@@ -634,6 +651,7 @@
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-primary" id="btnNuevo">+ Nuevo pedido</button>
+    <button class="btn btn-secondary" id="btnPedidoComun">+ Producto común</button>
     <button class="btn btn-cotizacion" id="btnNuevaCotizacion">Generar cotización</button>
     <button class="btn btn-secondary" id="btnExportar">Exportar a Excel</button>
     <button class="btn btn-ghost" id="btnSalir" style="color:#fff;">Cerrar sesión</button>
@@ -645,7 +663,7 @@
   <div class="summary-row" id="resumen"></div>
 
   <div class="toolbar">
-    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre o folio" autocomplete="off">
+    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar cliente, folio o producto común" autocomplete="off">
     <div class="date-filter">
       <label>Creado desde <input id="fechaDesde" type="date"></label>
       <label>hasta <input id="fechaHasta" type="date"></label>
@@ -659,6 +677,7 @@
       <button class="chip" data-f="terminado">Terminado</button>
       <button class="chip" data-f="debe">Saldo pendiente</button>
       <button class="chip" data-f="pago_en_proceso">Pago en proceso</button>
+      <button class="chip" data-f="anticipo_recibido">Anticipo recibido</button>
       <button class="chip" data-f="pagado">Pagados</button>
     </div>
   </div>
@@ -700,7 +719,7 @@ window.addEventListener('unhandledrejection', function(e){
   avisar('Ocurrió un problema al guardar/procesar. Detalle: ' + detalle + '\n\nIntenta de nuevo; si se repite, avísame el mensaje exacto.');
 });
 
-let state = { orders: [] };
+let state = { orders: [], commonOrders: [] };
 let currentFilter = 'todos';
 let editingId = null;
 let currentRole = null; // 'admin' | 'empleado'
@@ -713,7 +732,7 @@ const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG
   })
   : null;
 const LEGACY_STORAGE_KEY = 'yaviste-orders-v1';
-const ETIQUETAS_PAGO = {pendiente:'Pendiente', en_proceso:'Pago en proceso', pagado:'Pagado'};
+const ETIQUETAS_PAGO = {pendiente:'Pendiente', en_proceso:'Pago en proceso', anticipo_recibido:'Anticipo recibido', pagado:'Pagado'};
 
 // ---------- Modal propio (prompt/alert/confirm nativos no funcionan en este sandbox) ----------
 function abrirModal({mensaje, conInput=false, tipoInput='text', soloOk=false}){
@@ -816,6 +835,7 @@ async function entrarDashboard(rol){
   document.getElementById('appRoot').style.display='block';
   document.getElementById('rolTag').textContent = rol==='admin' ? 'Panel administrador' : 'Panel empleado';
   document.getElementById('btnNuevo').style.display = 'inline-flex';
+  document.getElementById('btnPedidoComun').style.display = 'inline-flex';
   document.getElementById('btnExportar').style.display = rol==='admin' ? 'inline-flex' : 'none';
   document.querySelector('#filtros [data-f="debe"]').style.display = rol==='admin' ? '' : 'none';
   currentFilter = 'todos';
@@ -825,6 +845,7 @@ async function entrarDashboard(rol){
   document.getElementById('limpiarFechas').style.display = 'none';
   document.querySelectorAll('#filtros .chip').forEach(c=>c.classList.toggle('active', c.dataset.f==='todos'));
   document.querySelector('#filtros [data-f="pago_en_proceso"]').style.display = rol==='admin' ? '' : 'none';
+  document.querySelector('#filtros [data-f="anticipo_recibido"]').style.display = rol==='admin' ? '' : 'none';
   document.querySelector('#filtros [data-f="pagado"]').style.display = rol==='admin' ? '' : 'none';
   try{
     await loadState();
@@ -955,6 +976,7 @@ async function loadState(){
   }
 
   state.orders = (data || []).map(pedidoDesdeFila);
+  state.commonOrders = await cargarPedidosComunes();
   const erroresImagenes = [];
   await Promise.all(state.orders.map(async order=>{
     if(!order.imagenPath) return;
@@ -970,6 +992,36 @@ async function loadState(){
   }));
   render();
   if(erroresImagenes.length) await avisar('No se pudieron cargar algunas imágenes. ' + erroresImagenes.join(' '));
+}
+
+async function cargarPedidosComunes(){
+  const pageSize = 1000;
+  const pedidos = [];
+  let pagina = 0;
+  while(true){
+    const desde = pagina * pageSize;
+    const {data, error} = await supabaseClient.from('pedidos_comunes')
+      .select('id, monto, producto, atendido_por, creado')
+      .order('creado', {ascending:false})
+      .range(desde, desde + pageSize - 1);
+    if(error) throw error;
+    pedidos.push(...(data || []));
+    if(!data || data.length < pageSize) return pedidos;
+    pagina++;
+  }
+}
+
+function sugerenciasPedidosComunes(campo){
+  const vistos = new Set();
+  return state.commonOrders.reduce((sugerencias, pedido)=>{
+    const valor = String(pedido[campo] || '').trim();
+    const clave = valor.toLocaleLowerCase('es-MX');
+    if(valor && !vistos.has(clave)){
+      vistos.add(clave);
+      sugerencias.push(valor);
+    }
+    return sugerencias;
+  }, []);
 }
 
 function pedidoDesdeFila(row){
@@ -1052,6 +1104,11 @@ function renderResumen(){
       }else{
         if(creadoHoy) ingresosHoy += anticipo;
         if(pagadoHoy) ingresosHoy += saldo;
+      }
+    });
+    state.commonOrders.forEach(order=>{
+      if(esFechaLocalHoy(order.creado, hoy)){
+        ingresosHoy += Math.max(0, Number(order.monto)||0);
       }
     });
   }
@@ -1144,13 +1201,16 @@ function fechaLocalDeISO(iso){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function pasaFiltro(o){
+function coincideFiltroFechas(creado){
   const desde = document.getElementById('fechaDesde').value;
   const hasta = document.getElementById('fechaHasta').value;
-  if(desde || hasta){
-    const fecha = fechaLocalDeISO(o.creado);
-    if(!fecha || (desde && fecha < desde) || (hasta && fecha > hasta)) return false;
-  }
+  if(!desde && !hasta) return true;
+  const fecha = fechaLocalDeISO(creado);
+  return Boolean(fecha) && (!desde || fecha>=desde) && (!hasta || fecha<=hasta);
+}
+
+function pasaFiltro(o){
+  if(!coincideFiltroFechas(o.creado)) return false;
   const busqueda = normalizarBusqueda(document.getElementById('buscarCliente').value);
   const busquedaFolio = busqueda.replace(/^#/, '');
   const folio = String(o.folio ?? '');
@@ -1163,26 +1223,56 @@ function pasaFiltro(o){
   if(currentFilter==='urgente') return o.tipoPedido === 'urgente' || o.fechaEntrega === fechaHoyLocal();
   if(currentFilter==='debe') return calcTotales(o).saldo > 0.009;
   if(currentFilter==='pago_en_proceso') return o.estatusPago === 'en_proceso';
+  if(currentFilter==='anticipo_recibido') return o.estatusPago === 'anticipo_recibido';
   if(currentFilter==='pagado') return o.estatusPago === 'pagado';
   return o.estatus === currentFilter;
 }
 
+function pasaFiltroPedidoComun(pedido){
+  if(currentFilter!=='todos' || !coincideFiltroFechas(pedido.creado)) return false;
+  const busqueda = normalizarBusqueda(document.getElementById('buscarCliente').value);
+  if(!busqueda) return true;
+  return [
+    pedido.producto,
+    pedido.atendido_por,
+    String(pedido.monto),
+    fmt(pedido.monto)
+  ].some(valor=>normalizarBusqueda(valor).includes(busqueda));
+}
+
 function renderLista(){
   const cont = document.getElementById('lista');
-  const items = [...state.orders]
-    .sort((a,b)=> Number(Boolean(a.revisado))-Number(Boolean(b.revisado)) || b.folio-a.folio)
-    .filter(pasaFiltro);
+  const items = [
+    ...state.orders.filter(pasaFiltro).map(order=>({tipo:'pedido', order, creado:order.creado})),
+    ...state.commonOrders.filter(pasaFiltroPedidoComun).map(pedido=>({tipo:'comun', pedido, creado:pedido.creado}))
+  ].sort((a,b)=>new Date(b.creado)-new Date(a.creado));
 
   if(items.length===0){
     cont.innerHTML = `<div class="empty">
       <div class="eye-big"></div>
-      <div style="font-weight:600;color:#1A1A1A;margin-bottom:4px;">Sin pedidos que mostrar</div>
-      <div style="font-size:13px;">Crea un pedido nuevo con el botón de arriba.</div>
+      <div style="font-weight:600;color:#1A1A1A;margin-bottom:4px;">Sin registros que mostrar</div>
+      <div style="font-size:13px;">Ajusta los filtros o registra un pedido nuevo o producto común.</div>
     </div>`;
     return;
   }
 
-  cont.innerHTML = items.map(o=>{
+  cont.innerHTML = items.map(item=>{
+    if(item.tipo==='comun'){
+      const pedido = item.pedido;
+      const fecha = new Date(pedido.creado);
+      return `
+        <div class="common-order-card">
+          <div class="common-order-title">Producto común</div>
+          <div class="common-order-product">${escapeHtml(pedido.producto)}</div>
+          <div class="common-order-meta">
+            <span>Monto: <strong>$${fmt(pedido.monto)}</strong></span>
+            <span>Atendió: ${escapeHtml(pedido.atendido_por)}</span>
+            <span>${fecha.toLocaleString('es-MX')}</span>
+          </div>
+        </div>
+      `;
+    }
+    const o = item.order;
     const restringido = pedidoEmpleadoRestringido(o);
     const estatusLabel = {pendiente:'En diseño', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
     const detallesPedido = (o.productos||[]).map(producto=>`
@@ -1222,7 +1312,7 @@ function renderLista(){
               <div class="order-statuses">
                 <span class="pill ${o.estatus}">${estatusLabel}</span>
                 ${o.tipoPedido==='urgente' ? '<span class="pill urgente">Urgente</span>' : ''}
-                <span class="pill ${{pagado:'pagado', en_proceso:'pago-en-proceso'}[o.estatusPago] || 'pago-pendiente'}">Pago: ${ETIQUETAS_PAGO[o.estatusPago] || 'Pendiente'}</span>
+                <span class="pill ${{pagado:'pagado', en_proceso:'pago-en-proceso', anticipo_recibido:'anticipo-recibido'}[o.estatusPago] || 'pago-pendiente'}">Pago: ${ETIQUETAS_PAGO[o.estatusPago] || 'Pendiente'}</span>
               </div>
             </div>
           </div>
@@ -1470,7 +1560,72 @@ function closeDrawer(){
 document.getElementById('btnCerrar').addEventListener('click', closeDrawer);
 document.getElementById('overlay').addEventListener('click', closeDrawer);
 document.getElementById('btnNuevo').addEventListener('click', abrirNuevo);
+document.getElementById('btnPedidoComun').addEventListener('click', abrirPedidoComun);
 document.getElementById('btnNuevaCotizacion').addEventListener('click', iniciarCotizacion);
+
+function abrirPedidoComun(){
+  if(currentRole!=='admin' && currentRole!=='empleado') return;
+  limpiarSeleccionImagen();
+  document.getElementById('drawerTitulo').textContent = 'Registrar producto común';
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="section-title">Producto común</div>
+    <label for="comunMonto">Monto</label>
+    <input id="comunMonto" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal" required>
+    <label for="comunProducto">Producto</label>
+    <input id="comunProducto" list="productos-comunes" maxlength="200" autocomplete="off" required>
+    <datalist id="productos-comunes">${sugerenciasPedidosComunes('producto').map(valor=>`<option value="${escapeHtml(valor)}"></option>`).join('')}</datalist>
+    <label for="comunAtendidoPor">Quién atendió</label>
+    <input id="comunAtendidoPor" list="personas-productos-comunes" maxlength="120" autocomplete="off" required>
+    <datalist id="personas-productos-comunes">${sugerenciasPedidosComunes('atendido_por').map(valor=>`<option value="${escapeHtml(valor)}"></option>`).join('')}</datalist>
+    <div class="drawer-actions">
+      <button class="btn btn-primary" id="btnGuardarPedidoComun">Guardar producto común</button>
+    </div>
+  `;
+  document.getElementById('btnGuardarPedidoComun').addEventListener('click', guardarPedidoComun);
+  openDrawer();
+}
+
+async function guardarPedidoComun(){
+  const montoInput = document.getElementById('comunMonto');
+  const productoInput = document.getElementById('comunProducto');
+  const atendidoPorInput = document.getElementById('comunAtendidoPor');
+  const monto = Number(montoInput.value);
+  const producto = productoInput.value.trim();
+  const atendidoPor = atendidoPorInput.value.trim();
+  if(!Number.isFinite(monto) || monto<=0 || monto>9999999999.99){
+    await avisar('Indica un monto mayor que cero.');
+    montoInput.focus();
+    return;
+  }
+  if(!producto){
+    await avisar('Indica el producto.');
+    productoInput.focus();
+    return;
+  }
+  if(!atendidoPor){
+    await avisar('Indica quién atendió.');
+    atendidoPorInput.focus();
+    return;
+  }
+
+  const boton = document.getElementById('btnGuardarPedidoComun');
+  boton.disabled = true;
+  try{
+    const {data, error} = await supabaseClient.from('pedidos_comunes')
+      .insert({monto, producto, atendido_por:atendidoPor})
+      .select('id, monto, producto, atendido_por, creado')
+      .single();
+    if(error) throw error;
+    state.commonOrders.unshift(data);
+    renderLista();
+    closeDrawer();
+    toast('Producto común guardado ✓');
+  }catch(error){
+    boton.disabled = false;
+    console.error('No se pudo guardar el producto común:', error);
+    await avisar('No se pudo guardar el producto común. Detalle: ' + (error.message || error));
+  }
+}
 
 function renderForm(){
   const o = draftOrder;
@@ -1519,6 +1674,9 @@ function renderForm(){
       <label for="f_imagen">Agregar o reemplazar imagen</label>
       <input id="f_imagen" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
       <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">JPG, PNG, WebP o GIF. Máximo 10 MB.</div>
+      <label for="f_fotografia">Tomar fotografía con el teléfono</label>
+      <input id="f_fotografia" type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment">
+      <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">En teléfonos abrirá la cámara trasera; en otros dispositivos podrás elegir una imagen.</div>
       <div id="imagenPedidoPreview">${imagenVisible?`<img class="order-image-preview" src="${escapeHtml(imagenVisible)}" alt="Vista previa de la imagen del pedido">`:''}</div>
     `}
 
@@ -1595,8 +1753,10 @@ function renderForm(){
     renderProductos(); renderTotales();
   });
   document.getElementById('btnGuardar').addEventListener('click', guardarDesdeForm);
-  const inputImagen = document.getElementById('f_imagen');
-  if(inputImagen){
+  const inputsImagen = ['f_imagen', 'f_fotografia']
+    .map(id=>document.getElementById(id))
+    .filter(Boolean);
+  inputsImagen.forEach(inputImagen=>{
     inputImagen.addEventListener('change', async ()=>{
       const archivo = inputImagen.files[0];
       if(!archivo) return;
@@ -1621,7 +1781,7 @@ function renderForm(){
       document.getElementById('imagenPedidoPreview').innerHTML =
         `<img class="order-image-preview" src="${imagenPreviewUrl}" alt="Vista previa de la imagen del pedido">`;
     });
-  }
+  });
   if(!restringido){
     document.getElementById('btnJPG').addEventListener('click', ()=>generarNota('jpg'));
     document.getElementById('btnPDF').addEventListener('click', ()=>generarNota('pdf'));
@@ -1746,6 +1906,7 @@ function renderPaymentStatusActions(){
   const estadosPago = [
     {k:'pendiente', l:ETIQUETAS_PAGO.pendiente},
     {k:'en_proceso', l:ETIQUETAS_PAGO.en_proceso},
+    {k:'anticipo_recibido', l:ETIQUETAS_PAGO.anticipo_recibido},
     {k:'pagado', l:ETIQUETAS_PAGO.pagado}
   ];
   document.getElementById('paymentStatusActions').innerHTML = estadosPago.map(e=>`
