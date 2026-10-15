@@ -115,11 +115,27 @@
     flex-wrap:wrap;
     flex:1 1 100%;
   }
+  .status-filter{position:relative;flex:0 0 auto;}
+  .status-filter-toggle{white-space:nowrap;}
+  .status-filter-menu{
+    position:absolute;
+    top:calc(100% + 6px);
+    left:0;
+    z-index:10;
+    display:none;
+    min-width:170px;
+    padding:6px;
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:0 8px 20px rgba(0,0,0,.14);
+  }
+  .status-filter.open .status-filter-menu{display:grid;gap:4px;}
+  .status-filter-menu .chip{width:100%;text-align:left;border-radius:7px;}
+  .date-filter-menu{min-width:240px;}
+  .date-filter-menu label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;}
+  .date-filter-menu input[type="date"]{height:34px;padding:0 8px;border:1.5px solid var(--line);border-radius:8px;font:inherit;font-weight:500;color:var(--ink);background:var(--paper-2);}
   .search-cliente{flex:1 1 220px;max-width:280px;height:38px;padding:0 11px;}
-  .date-filter{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-left:auto;font-size:12.5px;font-weight:600;color:var(--muted);}
-  .date-filter label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
-  .date-filter input[type="date"]{width:auto;height:38px;padding:0 8px;border:1.5px solid var(--line);border-radius:8px;font:inherit;font-weight:500;color:var(--ink);background:var(--paper-2);}
-  .date-filter .chip{height:38px;}
   @media (max-width:700px){
     header.app{padding:12px 14px;align-items:flex-start;flex-wrap:wrap;}
     header.app .brand{min-width:0;}
@@ -128,11 +144,8 @@
     header.app > div:last-child .btn{justify-content:center;min-width:0;padding:9px 8px;font-size:12px;}
     main{padding:14px 10px 64px;}
     .search-cliente{max-width:none;flex-basis:100%;}
-    .date-filter{margin-left:0;width:100%;gap:8px;}
-    .date-filter label{flex:1;justify-content:space-between;gap:5px;}
-    .date-filter input[type="date"]{min-width:0;flex:1;padding:0 5px;}
-    .filters{flex-wrap:nowrap;overflow-x:auto;padding:1px 0 5px;scrollbar-width:none;}
-    .filters::-webkit-scrollbar{display:none;}
+    .date-filter-menu{min-width:min(240px,calc(100vw - 28px));}
+    .filters{flex-wrap:wrap;overflow:visible;padding:1px 0 5px;}
     .filters .chip{flex:0 0 auto;}
     .summary-row{grid-template-columns:repeat(2,minmax(0,1fr));}
     .summary-row{gap:8px;margin-bottom:14px;}
@@ -185,6 +198,27 @@
   .chip[data-f="terminado"].active,.chip[data-f="pagado"].active{background:#1E8E3E;border-color:#1E8E3E;color:#fff;}
   .chip[data-f="urgente"],.chip[data-f="debe"]{border-color:#C62828;color:#C62828;background:#FDECEC;}
   .chip[data-f="urgente"].active,.chip[data-f="debe"].active{background:#C62828;border-color:#C62828;color:#fff;}
+  #filtros .chip{
+    border-width:1px;
+    font-weight:700;
+    filter:saturate(1.35);
+    transition:transform .18s ease,box-shadow .18s ease,filter .18s ease;
+  }
+  #filtros .chip:hover{
+    transform:translateY(-2px) scale(1.04);
+    filter:saturate(1.55) brightness(1.04);
+    box-shadow:0 5px 12px rgba(8,58,80,.2);
+  }
+  #filtros .chip:focus-visible{outline:3px solid rgba(0,174,239,.45);outline-offset:2px;}
+  #filtros .chip[data-f="anticipo_recibido"]{background:#FFE8CC;border-color:#F28C00;color:#B35F00;}
+  #filtros .chip[data-f="anticipo_recibido"].active{background:#F28C00;border-color:#F28C00;color:#fff;}
+  #filtros .chip,#filtros .chip.active{color:#000!important;}
+  #filtros .chip[data-f="todos"]{background:#3F5F96;border-color:#3F5F96;color:#fff!important;}
+  #filtros .chip[data-f="todos"].active{background:#0B2A5B;border-color:#0B2A5B;color:#fff!important;}
+  @media (prefers-reduced-motion:reduce){
+    #filtros .chip{transition:none;}
+    #filtros .chip:hover{transform:none;}
+  }
 
   .summary-row{
     display:grid;
@@ -327,6 +361,28 @@
   .pill.anticipo-recibido{background:#FFF2CC;color:#785B00;}
   .pill.pagado{background:#DEF4E8;color:#1E7A46;}
   .order-statuses{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  .order-progress{position:relative;z-index:2;display:flex;flex-wrap:wrap;gap:10px 0;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);cursor:default;}
+  .progress-group{flex:1 1 300px;min-width:0;}
+  .progress-group + .progress-group{margin-left:18px;padding-left:18px;border-left:2px solid var(--line);}
+  .progress-title{margin-bottom:6px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+  .progress-steps{display:flex;flex-wrap:wrap;gap:8px 16px;}
+  .progress-step{display:inline-flex;align-items:center;gap:6px;color:var(--ink);font-size:12px;font-weight:600;cursor:pointer;user-select:none;}
+  .progress-step input{appearance:none;-webkit-appearance:none;position:relative;width:16px;height:16px;min-width:16px;margin:0;padding:0;flex:none;cursor:pointer;border:2px solid #8A9BA8;border-radius:4px;background:#fff;transition:background .2s,border-color .2s;}
+  .progress-step input::after{content:"";position:absolute;left:3px;top:0;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);transition:transform .2s;}
+  .progress-step input:checked{background:var(--teal);border-color:var(--teal);}
+  .progress-step input:checked::after{transform:rotate(45deg) scale(1);}
+  .progress-step.pago-pagado input:checked{background:#1E9B4F;border-color:#1E9B4F;}
+  .progress-step.animar input{animation:casillaPop .45s ease;}
+  @keyframes casillaPop{0%{transform:scale(1);}40%{transform:scale(1.5);box-shadow:0 0 0 6px rgba(30,155,79,.25);}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(30,155,79,0);}}
+  @media (prefers-reduced-motion:reduce){.progress-step.animar input{animation:none;}.progress-step input,.progress-step input::after{transition:none;}}
+  .progress-step.locked{cursor:not-allowed;}
+  .progress-step.locked input{cursor:not-allowed;}
+  .progress-step:not(.checked).locked{opacity:.55;}
+  .progress-step.checked{color:var(--ink);}
+  @media (max-width:700px){
+    .progress-group + .progress-group{margin-left:0;padding-left:0;border-left:0;padding-top:10px;border-top:2px solid var(--line);}
+    .progress-step{font-size:11px;}
+  }
   .order-money{
     display:flex;
     justify-content:space-between;
@@ -664,21 +720,34 @@
 
   <div class="toolbar">
     <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar cliente, folio o producto común" autocomplete="off">
-    <div class="date-filter">
-      <label>Creado desde <input id="fechaDesde" type="date"></label>
-      <label>hasta <input id="fechaHasta" type="date"></label>
-      <button type="button" class="chip" id="limpiarFechas" style="display:none;">Quitar filtros</button>
-    </div>
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
-      <button class="chip" data-f="pendiente">En diseño</button>
-      <button class="chip" data-f="proceso">En proceso</button>
       <button class="chip" data-f="urgente">Urgente</button>
-      <button class="chip" data-f="terminado">Terminado</button>
-      <button class="chip" data-f="debe">Saldo pendiente</button>
-      <button class="chip" data-f="pago_en_proceso">Pago en proceso</button>
-      <button class="chip" data-f="anticipo_recibido">Anticipo recibido</button>
-      <button class="chip" data-f="pagado">Pagados</button>
+      <div class="status-filter" id="statusFilter">
+        <button type="button" class="chip status-filter-toggle" id="statusFilterToggle" data-label="Estatus" aria-haspopup="true" aria-expanded="false">Estatus ▾</button>
+        <div class="status-filter-menu" id="statusFilterMenu">
+          <button class="chip" data-f="pendiente">En diseño</button>
+          <button class="chip" data-f="proceso">En proceso</button>
+          <button class="chip" data-f="terminado">Terminado</button>
+        </div>
+      </div>
+      <div class="status-filter" id="paymentFilter">
+        <button type="button" class="chip status-filter-toggle" id="paymentFilterToggle" data-label="Pagos" aria-haspopup="true" aria-expanded="false">Pagos ▾</button>
+        <div class="status-filter-menu" id="paymentFilterMenu">
+          <button class="chip" data-f="pagado">Pagados</button>
+          <button class="chip" data-f="anticipo_recibido">Anticipo recibido</button>
+          <button class="chip" data-f="pago_en_proceso">Pago en proceso</button>
+          <button class="chip" data-f="debe">Saldo pendiente</button>
+        </div>
+      </div>
+      <div class="status-filter" id="dateFilter">
+        <button type="button" class="chip status-filter-toggle" id="dateFilterToggle" data-label="Filtro por fecha" aria-haspopup="true" aria-expanded="false">Filtro por fecha ▾</button>
+        <div class="status-filter-menu date-filter-menu" id="dateFilterMenu">
+          <label>Creado desde <input id="fechaDesde" type="date"></label>
+          <label>hasta <input id="fechaHasta" type="date"></label>
+          <button type="button" class="chip" id="limpiarFechas" style="display:none;">Quitar filtros</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -733,6 +802,8 @@ const supabaseClient = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG
   : null;
 const LEGACY_STORAGE_KEY = 'yaviste-orders-v1';
 const ETIQUETAS_PAGO = {pendiente:'Pendiente', en_proceso:'Pago en proceso', anticipo_recibido:'Anticipo recibido', pagado:'Pagado'};
+const PROGRESO_PEDIDO = [{k:'pendiente', l:'En diseño'}, {k:'proceso', l:'En proceso'}, {k:'terminado', l:'Terminado'}];
+const PROGRESO_PAGO = Object.keys(ETIQUETAS_PAGO).map(k=>({k, l:ETIQUETAS_PAGO[k]}));
 
 // ---------- Modal propio (prompt/alert/confirm nativos no funcionan en este sandbox) ----------
 function abrirModal({mensaje, conInput=false, tipoInput='text', soloOk=false}){
@@ -837,16 +908,20 @@ async function entrarDashboard(rol){
   document.getElementById('btnNuevo').style.display = 'inline-flex';
   document.getElementById('btnPedidoComun').style.display = 'inline-flex';
   document.getElementById('btnExportar').style.display = rol==='admin' ? 'inline-flex' : 'none';
-  document.querySelector('#filtros [data-f="debe"]').style.display = rol==='admin' ? '' : 'none';
   currentFilter = 'todos';
   document.getElementById('buscarCliente').value = '';
   document.getElementById('fechaDesde').value = '';
   document.getElementById('fechaHasta').value = '';
   document.getElementById('limpiarFechas').style.display = 'none';
   document.querySelectorAll('#filtros .chip').forEach(c=>c.classList.toggle('active', c.dataset.f==='todos'));
-  document.querySelector('#filtros [data-f="pago_en_proceso"]').style.display = rol==='admin' ? '' : 'none';
-  document.querySelector('#filtros [data-f="anticipo_recibido"]').style.display = rol==='admin' ? '' : 'none';
-  document.querySelector('#filtros [data-f="pagado"]').style.display = rol==='admin' ? '' : 'none';
+  document.querySelectorAll('#filtros .status-filter').forEach(dropdown=>{
+    const toggle = dropdown.querySelector('.status-filter-toggle');
+    toggle.textContent = toggle.dataset.label + ' ▾';
+    toggle.classList.remove('active');
+    toggle.setAttribute('aria-expanded', 'false');
+    dropdown.classList.remove('open');
+  });
+  document.getElementById('paymentFilter').style.display = rol==='admin' ? '' : 'none';
   try{
     await loadState();
   }catch(error){
@@ -1240,6 +1315,54 @@ function pasaFiltroPedidoComun(pedido){
   ].some(valor=>normalizarBusqueda(valor).includes(busqueda));
 }
 
+let ultimoProgreso = null;
+function renderPasosProgreso(o, tipo, pasos, actual){
+  const posicion = Math.max(0, pasos.findIndex(paso=>paso.k===actual));
+  const bloqueadoTodo = o.revisado || (tipo==='pago' && currentRole==='empleado' && actual==='pagado');
+  return pasos.map((paso, i)=>{
+    const marcado = i<=posicion;
+    const habilitado = !bloqueadoTodo && (i===posicion+1 || (i===posicion && i>0));
+    const animar = ultimoProgreso && ultimoProgreso.id===o.id && ultimoProgreso.tipo===tipo && ultimoProgreso.nivel===i;
+    return `<label class="progress-step ${tipo}-${paso.k}${marcado?' checked':''}${animar?' animar':''}${habilitado?'':' locked'}">
+      <input type="checkbox" ${marcado?'checked':''} ${habilitado?'':'disabled'}
+        onchange="cambiarProgresoPedido('${o.id}','${tipo}',${i},this)">${paso.l}
+    </label>`;
+  }).join('');
+}
+
+function renderProgresoPedido(o){
+  return `<div class="order-progress" onclick="event.stopPropagation()">
+    <div class="progress-group">
+      <div class="progress-title">Estatus del pedido</div>
+      <div class="progress-steps">${renderPasosProgreso(o, 'pedido', PROGRESO_PEDIDO, o.estatus)}</div>
+    </div>
+    <div class="progress-group">
+      <div class="progress-title">Estatus de pago</div>
+      <div class="progress-steps">${renderPasosProgreso(o, 'pago', PROGRESO_PAGO, o.estatusPago || 'pendiente')}</div>
+    </div>
+  </div>`;
+}
+
+async function cambiarProgresoPedido(id, tipo, nivel, checkbox){
+  const pedido = state.orders.find(x=>x.id===id);
+  if(!pedido) return;
+  const pasos = tipo==='pedido' ? PROGRESO_PEDIDO : PROGRESO_PAGO;
+  const nuevoValor = pasos[checkbox.checked ? nivel : nivel-1].k;
+  const nuevoEstatus = tipo==='pedido' ? nuevoValor : pedido.estatus;
+  const nuevoPago = tipo==='pago' ? nuevoValor : (pedido.estatusPago || 'pendiente');
+  checkbox.closest('.order-progress').querySelectorAll('input').forEach(input=>{ input.disabled = true; });
+  if(checkbox.checked){ checkbox.closest('.progress-step').classList.add('animar'); ultimoProgreso = {id, tipo, nivel}; }
+  try{
+    const guardado = await guardarPedidoEnSupabase({...pedido, estatus:nuevoEstatus, estatusPago:nuevoPago}, false);
+    const indice = state.orders.findIndex(x=>x.id===id);
+    if(indice>=0) state.orders[indice] = guardado;
+  }catch(error){
+    await avisar('No se pudo actualizar el estatus. ' + (error.message || ''));
+  }
+  render();
+  ultimoProgreso = null;
+}
+
 function renderLista(){
   const cont = document.getElementById('lista');
   const items = [
@@ -1318,6 +1441,7 @@ function renderLista(){
           </div>
           ${o.imagenUrl?`<img class="order-image-thumb" src="${escapeHtml(o.imagenUrl)}" alt="Imagen del pedido ${String(o.folio).padStart(4,'0')}">`:''}
         </div>
+        ${renderProgresoPedido(o)}
         ${restringido?'':(()=>{
           const t = calcTotales(o);
           const saldoClass = t.saldo > 0.009 ? 'saldo-pos' : 'saldo-ok';
@@ -1405,6 +1529,7 @@ document.getElementById('buscarCliente').addEventListener('input', renderLista);
 function alCambiarFechas(){
   const hay = document.getElementById('fechaDesde').value || document.getElementById('fechaHasta').value;
   document.getElementById('limpiarFechas').style.display = hay ? '' : 'none';
+  document.getElementById('dateFilterToggle').classList.toggle('active', !!hay);
   renderLista();
 }
 document.getElementById('fechaDesde').addEventListener('change', alCambiarFechas);
@@ -1417,11 +1542,40 @@ document.getElementById('limpiarFechas').addEventListener('click', ()=>{
 
 document.getElementById('filtros').addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip');
-  if(!btn) return;
-  document.querySelectorAll('#filtros .chip').forEach(c=>c.classList.remove('active'));
+  if(!btn || btn.classList.contains('status-filter-toggle') || btn.closest('#dateFilter')) return;
+  document.querySelectorAll('#filtros .chip').forEach(c=>{ if(!c.closest('#dateFilter')) c.classList.remove('active'); });
   btn.classList.add('active');
   currentFilter = btn.dataset.f;
+  document.querySelectorAll('#filtros .status-filter:not(#dateFilter)').forEach(dropdown=>{
+    const toggle = dropdown.querySelector('.status-filter-toggle');
+    const selected = dropdown.contains(btn);
+    dropdown.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.classList.toggle('active', selected);
+    toggle.textContent = (selected ? btn.textContent.trim() : toggle.dataset.label) + ' ▾';
+  });
   renderLista();
+});
+function cerrarFiltrosDesplegables(except){
+  document.querySelectorAll('#filtros .status-filter').forEach(dropdown=>{
+    if(dropdown === except) return;
+    dropdown.classList.remove('open');
+    dropdown.querySelector('.status-filter-toggle').setAttribute('aria-expanded', 'false');
+  });
+}
+document.querySelectorAll('#filtros .status-filter-toggle').forEach(toggle=>{
+  toggle.addEventListener('click', ()=>{
+    const dropdown = toggle.closest('.status-filter');
+    cerrarFiltrosDesplegables(dropdown);
+    const isOpen = dropdown.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+  });
+});
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('#filtros .status-filter')) cerrarFiltrosDesplegables();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') cerrarFiltrosDesplegables();
 });
 
 // ---------- Drawer / formulario ----------
