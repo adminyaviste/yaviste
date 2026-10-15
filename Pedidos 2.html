@@ -272,6 +272,7 @@
     cursor:pointer;
   }
   .order-check:disabled{cursor:not-allowed;opacity:.35;}
+  .order-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
   .order-review-control{position:relative;z-index:2;width:max-content;max-width:100%;margin:0 0 8px auto;text-align:right;}
   .order-review-label{display:flex;align-items:center;justify-content:flex-end;color:#16803c;font-size:11.5px;font-weight:700;cursor:pointer;}
   .order-review-legend{max-width:240px;margin-top:2px;color:var(--muted);font-size:10.5px;line-height:1.35;}
@@ -362,11 +363,12 @@
   .pill.pagado{background:#DEF4E8;color:#1E7A46;}
   .order-statuses{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
   .order-progress{position:relative;z-index:2;display:flex;flex-wrap:wrap;gap:10px 0;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);cursor:default;}
-  .progress-group{flex:1 1 300px;min-width:0;}
+  .progress-group{flex:1 1 240px;min-width:0;}
   .progress-group + .progress-group{margin-left:18px;padding-left:18px;border-left:2px solid var(--line);}
   .progress-title{margin-bottom:6px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
-  .progress-steps{display:flex;flex-wrap:wrap;gap:8px 16px;}
-  .progress-step{display:inline-flex;align-items:center;gap:6px;color:var(--ink);font-size:12px;font-weight:600;cursor:pointer;user-select:none;}
+  .progress-steps{display:grid;grid-template-columns:repeat(2,max-content);gap:8px 22px;}
+  .progress-steps.pedido-steps{grid-template-columns:repeat(3,max-content);}
+  .progress-step{display:inline-flex;align-items:center;margin:0;min-height:0;gap:6px;color:var(--ink);font-size:10.5px;font-weight:600;cursor:pointer;user-select:none;}
   .progress-step input{appearance:none;-webkit-appearance:none;position:relative;width:16px;height:16px;min-width:16px;margin:0;padding:0;flex:none;cursor:pointer;border:2px solid #8A9BA8;border-radius:4px;background:#fff;transition:background .2s,border-color .2s;}
   .progress-step input::after{content:"";position:absolute;left:3px;top:0;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);transition:transform .2s;}
   .progress-step input:checked{background:var(--teal);border-color:var(--teal);}
@@ -381,7 +383,7 @@
   .progress-step.checked{color:var(--ink);}
   @media (max-width:700px){
     .progress-group + .progress-group{margin-left:0;padding-left:0;border-left:0;padding-top:10px;border-top:2px solid var(--line);}
-    .progress-step{font-size:11px;}
+    .progress-group{flex-basis:100%;}
   }
   .order-money{
     display:flex;
@@ -1334,7 +1336,7 @@ function renderProgresoPedido(o){
   return `<div class="order-progress" onclick="event.stopPropagation()">
     <div class="progress-group">
       <div class="progress-title">Estatus del pedido</div>
-      <div class="progress-steps">${renderPasosProgreso(o, 'pedido', PROGRESO_PEDIDO, o.estatus)}</div>
+      <div class="progress-steps pedido-steps">${renderPasosProgreso(o, 'pedido', PROGRESO_PEDIDO, o.estatus)}</div>
     </div>
     <div class="progress-group">
       <div class="progress-title">Estatus de pago</div>
@@ -1397,7 +1399,6 @@ function renderLista(){
     }
     const o = item.order;
     const restringido = pedidoEmpleadoRestringido(o);
-    const estatusLabel = {pendiente:'En diseño', proceso:'En proceso', terminado:'Terminado'}[o.estatus];
     const detallesPedido = (o.productos||[]).map(producto=>`
       <div class="order-detail">
         <span class="order-detail-name">${escapeHtml(producto.desc||'Sin descripción')}</span>
@@ -1408,6 +1409,8 @@ function renderLista(){
     const puedeRevisar = o.estatus==='terminado' && o.estatusPago==='pagado';
     return `
       <div class="order-card${o.revisado?' revisado':''}" onclick="abrirPedido('${o.id}')">
+        <div class="order-card-head">
+        ${o.tipoPedido==='urgente' ? '<span class="pill urgente">Urgente</span>' : ''}
         <div class="order-review-control" onclick="event.stopPropagation()">
           <label class="order-review-label">
             Entregado
@@ -1416,6 +1419,7 @@ function renderLista(){
               onchange="alternarRevisado('${o.id}', this)">
           </label>
           ${puedeRevisar?'':'<div class="order-review-legend">No disponible hasta que el pedido se marque como terminado y pagado</div>'}
+        </div>
         </div>
         <div class="order-content-row">
           <div class="order-content-main">
@@ -1433,9 +1437,6 @@ function renderLista(){
                 <div class="order-meta">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
               </div>
               <div class="order-statuses">
-                <span class="pill ${o.estatus}">${estatusLabel}</span>
-                ${o.tipoPedido==='urgente' ? '<span class="pill urgente">Urgente</span>' : ''}
-                <span class="pill ${{pagado:'pagado', en_proceso:'pago-en-proceso', anticipo_recibido:'anticipo-recibido'}[o.estatusPago] || 'pago-pendiente'}">Pago: ${ETIQUETAS_PAGO[o.estatusPago] || 'Pendiente'}</span>
               </div>
             </div>
           </div>
