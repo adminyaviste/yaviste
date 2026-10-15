@@ -171,6 +171,15 @@
     .employee-balance{margin-top:8px;padding:8px 10px;font-size:12px;}
     .order-edit-hint{font-size:10px;margin-top:5px;}
   }
+  @media (max-width:480px){
+    .summary-row{grid-template-columns:1fr;}
+    .order-card{padding:11px;}
+    .order-content-row{display:flex;flex-direction:column;gap:8px;}
+    .order-image-thumb{width:72px;height:72px;flex-basis:72px;margin:0;align-self:flex-end;}
+    .order-card-head{gap:6px;}
+    .order-review-legend{max-width:150px;}
+    .order-money{flex-wrap:wrap;justify-content:flex-start;gap:4px 14px;}
+  }
   .chip{
     border:1.5px solid var(--line);
     background:var(--paper-2);
@@ -394,6 +403,13 @@
   @media (max-width:700px){
     .progress-group + .progress-group{margin-left:0;padding-left:0;border-left:0;padding-top:10px;border-top:2px solid var(--line);}
     .progress-group{flex-basis:100%;}
+  }
+  @media (max-width:700px){
+    .progress-steps,.progress-steps.pedido-steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;}
+    .progress-step{align-items:flex-start;min-width:0;line-height:1.3;}
+  }
+  @media (max-width:360px){
+    .progress-steps,.progress-steps.pedido-steps{grid-template-columns:minmax(0,1fr);}
   }
   .order-money{
     display:flex;
