@@ -135,7 +135,8 @@
   .date-filter-menu{min-width:240px;}
   .date-filter-menu label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;}
   .date-filter-menu input[type="date"]{height:34px;padding:0 8px;border:1.5px solid var(--line);border-radius:8px;font:inherit;font-weight:500;color:var(--ink);background:var(--paper-2);}
-  .search-cliente{flex:1 1 220px;max-width:280px;height:38px;padding:0 11px;}
+  .search-row{margin-bottom:12px;}
+  .search-cliente{width:100%;max-width:280px;height:38px;padding:0 11px;}
   @media (max-width:700px){
     header.app{padding:12px 14px;align-items:flex-start;flex-wrap:wrap;}
     header.app .brand{min-width:0;}
@@ -164,7 +165,7 @@
     .order-details{margin-top:7px;padding:7px 8px;}
     .order-detail{font-size:12px;gap:6px;}
     .order-detail-quantity{font-size:11px;}
-    .cliente-nombre{font-size:12px;}
+    .cliente-nombre,.cliente-telefono{font-size:13px;}
     .order-meta{font-size:11px;line-height:1.35;}
     .order-notes{font-size:11.5px;padding:7px 8px;}
     .order-money{font-size:12px;gap:8px;}
@@ -330,7 +331,9 @@
     color:var(--teal-dark);
     line-height:1.15;
   }
-  .cliente-nombre{font-weight:500;font-size:12.5px;color:var(--muted);margin-top:5px;}
+  .cliente-nombre,.cliente-telefono{font-weight:700;font-size:14px;color:var(--ink);}
+  .cliente-nombre{margin-top:7px;}
+  .cliente-telefono{margin-top:2px;}
   .order-meta{font-size:12px;color:var(--muted);margin-top:4px;}
   .order-details{
     margin-top:8px;
@@ -744,10 +747,13 @@
 </header>
 
 <main>
+  <div class="search-row">
+    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar por nombre, folio o producto" autocomplete="off">
+  </div>
+
   <div class="summary-row" id="resumen"></div>
 
   <div class="toolbar">
-    <input id="buscarCliente" type="search" class="search-cliente" placeholder="Buscar cliente, folio o producto común" autocomplete="off">
     <div class="filters" id="filtros">
       <button class="chip active" data-f="todos">Todos</button>
       <button class="chip" data-f="urgente">Urgente</button>
@@ -1104,7 +1110,7 @@ async function cargarPedidosComunes(){
   while(true){
     const desde = pagina * pageSize;
     const {data, error} = await supabaseClient.from('pedidos_comunes')
-      .select('id, monto, producto, atendido_por, creado')
+      .select('id, cantidad, precio_unitario, monto, producto, atendido_por, creado')
       .order('creado', {ascending:false})
       .range(desde, desde + pageSize - 1);
     if(error) throw error;
@@ -1342,6 +1348,9 @@ function pasaFiltroPedidoComun(pedido){
   return [
     pedido.producto,
     pedido.atendido_por,
+    String(pedido.cantidad||1),
+    String(pedido.precio_unitario||pedido.monto),
+    fmt(pedido.precio_unitario||pedido.monto),
     String(pedido.monto),
     fmt(pedido.monto)
   ].some(valor=>normalizarBusqueda(valor).includes(busqueda));
@@ -1425,9 +1434,11 @@ function renderLista(){
           <div class="common-order-title">Producto común</div>
           <div class="common-order-product">${escapeHtml(pedido.producto)}</div>
           <div class="common-order-meta">
-            <span>Monto: <strong>$${fmt(pedido.monto)}</strong></span>
-            <span>Atendió: ${escapeHtml(pedido.atendido_por)}</span>
-            <span>${fecha.toLocaleString('es-MX')}</span>
+                <span>Cantidad: <strong>${escapeHtml(String(pedido.cantidad||1))}</strong></span>
+                <span>Precio unitario: <strong>$${fmt(pedido.precio_unitario||pedido.monto)}</strong></span>
+                <span>Total: <strong>$${fmt(pedido.monto)}</strong></span>
+                <span>Atendió: ${escapeHtml(pedido.atendido_por)}</span>
+                <span>${fecha.toLocaleString('es-MX')}</span>
           </div>
         </div>
       `;
@@ -1466,6 +1477,7 @@ function renderLista(){
                 <div class="order-details">${detallesPedido||'<div class="order-detail-name">Sin detalles registrados</div>'}</div>
                 ${notasInternas?`<div class="order-notes"><span class="order-notes-label">Nota interna</span>${escapeHtml(notasInternas)}</div>`:''}
                 <div class="cliente-nombre">Cliente: ${escapeHtml(o.cliente?.nombre||'Sin nombre')}</div>
+                <div class="cliente-telefono">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
                 <div class="order-meta">Realizado: ${new Date(o.creado).toLocaleDateString('es-MX')}</div>
                 ${currentRole==='admin' && o.pagoMarcadoEn
                   ? `<div class="order-meta">Pagado el: ${new Date(o.pagoMarcadoEn).toLocaleDateString('es-MX')}</div>`
@@ -1473,7 +1485,6 @@ function renderLista(){
                 ${o.fechaEntrega || o.horaEntrega
                   ? `<div class="order-meta">Entrega: ${o.fechaEntrega ? new Date(o.fechaEntrega+'T00:00:00').toLocaleDateString('es-MX') : 'Por confirmar'}${o.horaEntrega ? ' · ' + escapeHtml(o.horaEntrega) : ''}</div>`
                   : ''}
-                <div class="order-meta">Teléfono: ${escapeHtml(String(o.cliente?.whatsapp||'No registrado'))}</div>
               </div>
               <div class="order-statuses">
               </div>
@@ -1763,11 +1774,15 @@ function abrirPedidoComun(){
   document.getElementById('drawerTitulo').textContent = 'Registrar producto común';
   document.getElementById('drawerBody').innerHTML = `
     <div class="section-title">Producto común</div>
-    <label for="comunMonto">Monto</label>
-    <input id="comunMonto" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal" required>
+    <label for="comunCantidad">Cantidad</label>
+    <input id="comunCantidad" type="number" min="1" max="2147483647" step="1" inputmode="numeric" required>
     <label for="comunProducto">Producto</label>
     <input id="comunProducto" list="productos-comunes" maxlength="200" autocomplete="off" required>
     <datalist id="productos-comunes">${sugerenciasPedidosComunes('producto').map(valor=>`<option value="${escapeHtml(valor)}"></option>`).join('')}</datalist>
+    <label for="comunPrecioUnitario">Precio unitario</label>
+    <input id="comunPrecioUnitario" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal" required>
+    <label for="comunTotal">Total</label>
+    <input id="comunTotal" type="number" step="0.01" readonly aria-label="Total calculado">
     <label for="comunAtendidoPor">Quién atendió</label>
     <input id="comunAtendidoPor" list="personas-productos-comunes" maxlength="120" autocomplete="off" required>
     <datalist id="personas-productos-comunes">${sugerenciasPedidosComunes('atendido_por').map(valor=>`<option value="${escapeHtml(valor)}"></option>`).join('')}</datalist>
@@ -1775,25 +1790,55 @@ function abrirPedidoComun(){
       <button class="btn btn-primary" id="btnGuardarPedidoComun">Guardar producto común</button>
     </div>
   `;
+  document.getElementById('comunCantidad').addEventListener('input', actualizarTotalPedidoComun);
+  document.getElementById('comunPrecioUnitario').addEventListener('input', actualizarTotalPedidoComun);
   document.getElementById('btnGuardarPedidoComun').addEventListener('click', guardarPedidoComun);
   openDrawer();
 }
 
+function actualizarTotalPedidoComun(){
+  const cantidad = Number(document.getElementById('comunCantidad').value);
+  const precioUnitario = Number(document.getElementById('comunPrecioUnitario').value);
+  const totalInput = document.getElementById('comunTotal');
+  const precioCentavos = Math.round(precioUnitario * 100);
+  const totalCentavos = cantidad * precioCentavos;
+  totalInput.value = Number.isSafeInteger(cantidad) && cantidad>0
+    && Number.isFinite(precioUnitario) && precioUnitario>0
+    && Math.abs(precioUnitario - precioCentavos / 100)<0.00000001
+    && Number.isSafeInteger(totalCentavos) && totalCentavos<=999999999999
+    ? (totalCentavos / 100).toFixed(2)
+    : '';
+}
+
 async function guardarPedidoComun(){
-  const montoInput = document.getElementById('comunMonto');
+  const cantidadInput = document.getElementById('comunCantidad');
   const productoInput = document.getElementById('comunProducto');
+  const precioUnitarioInput = document.getElementById('comunPrecioUnitario');
+  const totalInput = document.getElementById('comunTotal');
   const atendidoPorInput = document.getElementById('comunAtendidoPor');
-  const monto = Number(montoInput.value);
+  const cantidad = Number(cantidadInput.value);
   const producto = productoInput.value.trim();
+  const precioUnitario = Number(precioUnitarioInput.value);
+  const monto = Number(totalInput.value);
   const atendidoPor = atendidoPorInput.value.trim();
-  if(!Number.isFinite(monto) || monto<=0 || monto>9999999999.99){
-    await avisar('Indica un monto mayor que cero.');
-    montoInput.focus();
+  const precioCentavos = Math.round(precioUnitario * 100);
+  const totalCalculado = cantidad * precioCentavos / 100;
+  if(!Number.isSafeInteger(cantidad) || cantidad<=0 || cantidad>2147483647){
+    await avisar('Indica una cantidad entera mayor que cero.');
+    cantidadInput.focus();
     return;
   }
   if(!producto){
     await avisar('Indica el producto.');
     productoInput.focus();
+    return;
+  }
+  if(!Number.isFinite(precioUnitario) || precioUnitario<=0 || precioUnitario>9999999999.99
+    || Math.abs(precioUnitario - precioCentavos / 100)>=0.00000001
+    || !Number.isSafeInteger(cantidad * precioCentavos) || monto!==totalCalculado
+    || !Number.isFinite(monto) || monto<=0 || monto>9999999999.99){
+    await avisar('Indica un precio unitario mayor que cero y verifica que el total no exceda el máximo permitido.');
+    precioUnitarioInput.focus();
     return;
   }
   if(!atendidoPor){
@@ -1806,8 +1851,8 @@ async function guardarPedidoComun(){
   boton.disabled = true;
   try{
     const {data, error} = await supabaseClient.from('pedidos_comunes')
-      .insert({monto, producto, atendido_por:atendidoPor})
-      .select('id, monto, producto, atendido_por, creado')
+      .insert({cantidad, precio_unitario:precioUnitario, monto, producto, atendido_por:atendidoPor})
+      .select('id, cantidad, precio_unitario, monto, producto, atendido_por, creado')
       .single();
     if(error) throw error;
     state.commonOrders.unshift(data);

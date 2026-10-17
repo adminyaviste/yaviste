@@ -26,10 +26,32 @@ create table if not exists public.pedidos (
 create table if not exists public.pedidos_comunes (
   id uuid primary key default gen_random_uuid(),
   creado timestamptz not null default now(),
+  cantidad integer not null default 1,
+  precio_unitario numeric(12, 2) not null,
   monto numeric(12, 2) not null check (monto > 0),
   producto text not null check (length(btrim(producto)) between 1 and 200),
-  atendido_por text not null check (length(btrim(atendido_por)) between 1 and 120)
+  atendido_por text not null check (length(btrim(atendido_por)) between 1 and 120),
+  constraint pedidos_comunes_cantidad_check check (cantidad > 0),
+  constraint pedidos_comunes_precio_unitario_check check (precio_unitario > 0),
+  constraint pedidos_comunes_total_check check (monto = cantidad * precio_unitario)
 );
+
+alter table public.pedidos_comunes add column if not exists cantidad integer;
+alter table public.pedidos_comunes add column if not exists precio_unitario numeric(12, 2);
+update public.pedidos_comunes
+set cantidad = coalesce(cantidad, 1),
+    precio_unitario = coalesce(precio_unitario, monto)
+where cantidad is null or precio_unitario is null;
+alter table public.pedidos_comunes alter column cantidad set default 1;
+alter table public.pedidos_comunes alter column cantidad set not null;
+alter table public.pedidos_comunes alter column precio_unitario set not null;
+alter table public.pedidos_comunes drop constraint if exists pedidos_comunes_cantidad_check;
+alter table public.pedidos_comunes drop constraint if exists pedidos_comunes_precio_unitario_check;
+alter table public.pedidos_comunes drop constraint if exists pedidos_comunes_total_check;
+alter table public.pedidos_comunes
+  add constraint pedidos_comunes_cantidad_check check (cantidad > 0),
+  add constraint pedidos_comunes_precio_unitario_check check (precio_unitario > 0),
+  add constraint pedidos_comunes_total_check check (monto = cantidad * precio_unitario);
 
 create index if not exists pedidos_comunes_creado_idx on public.pedidos_comunes (creado desc);
 
@@ -171,7 +193,7 @@ revoke all on public.pedidos_cliente from anon;
 grant select on public.staff_roles to authenticated;
 grant select, insert, update, delete on public.pedidos to authenticated;
 grant select on public.pedidos_comunes to authenticated;
-grant insert (monto, producto, atendido_por) on public.pedidos_comunes to authenticated;
+grant insert (cantidad, precio_unitario, monto, producto, atendido_por) on public.pedidos_comunes to authenticated;
 grant select on public.pedidos_cliente to authenticated;
 
 do $$
