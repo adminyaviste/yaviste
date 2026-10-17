@@ -782,6 +782,13 @@
           <button type="button" class="chip" id="limpiarFechas" style="display:none;">Quitar filtros</button>
         </div>
       </div>
+      <div class="status-filter" id="sortFilter">
+        <button type="button" class="chip status-filter-toggle" id="sortFilterToggle" data-label="Ordenar por" aria-haspopup="true" aria-expanded="false">Ordenar por: Más urgentes ▾</button>
+        <div class="status-filter-menu" id="sortFilterMenu">
+          <button type="button" class="chip active" data-sort="mas_urgentes">Más urgentes</button>
+          <button type="button" class="chip" data-sort="mas_recientes">Más recientes</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -824,6 +831,7 @@ window.addEventListener('unhandledrejection', function(e){
 
 let state = { orders: [], commonOrders: [] };
 let currentFilter = 'todos';
+let currentSort = 'mas_urgentes';
 let editingId = null;
 let currentRole = null; // 'admin' | 'empleado'
 const SUPABASE_CONFIG = window.YAVISTE_SUPABASE_CONFIG || {};
@@ -1411,9 +1419,15 @@ function renderLista(){
     ...state.orders.filter(pasaFiltro).map(order=>({tipo:'pedido', order, creado:order.creado})),
     ...state.commonOrders.filter(pasaFiltroPedidoComun).map(pedido=>({tipo:'comun', pedido, creado:pedido.creado}))
   ].sort((a,b)=>{
-    const aMasUrgente = a.tipo==='pedido' && esPedidoMasUrgente(a.order, hoy);
-    const bMasUrgente = b.tipo==='pedido' && esPedidoMasUrgente(b.order, hoy);
-    return Number(bMasUrgente)-Number(aMasUrgente) || new Date(b.creado)-new Date(a.creado);
+    if(currentSort==='mas_recientes') return new Date(b.creado)-new Date(a.creado);
+    const prioridad = item=>{
+      if(item.tipo!=='pedido') return 2;
+      if(item.order.revisado) return 3;
+      if(esPedidoMasUrgente(item.order, hoy)) return 0;
+      if(item.order.tipoPedido==='urgente') return 1;
+      return 2;
+    };
+    return prioridad(a)-prioridad(b) || new Date(b.creado)-new Date(a.creado);
   });
 
   if(items.length===0){
@@ -1593,11 +1607,11 @@ document.getElementById('limpiarFechas').addEventListener('click', ()=>{
 
 document.getElementById('filtros').addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip');
-  if(!btn || btn.classList.contains('status-filter-toggle') || btn.closest('#dateFilter')) return;
-  document.querySelectorAll('#filtros .chip').forEach(c=>{ if(!c.closest('#dateFilter')) c.classList.remove('active'); });
+  if(!btn || btn.classList.contains('status-filter-toggle') || btn.closest('#dateFilter') || btn.closest('#sortFilter')) return;
+  document.querySelectorAll('#filtros .chip').forEach(c=>{ if(!c.closest('#dateFilter') && !c.closest('#sortFilter')) c.classList.remove('active'); });
   btn.classList.add('active');
   currentFilter = btn.dataset.f;
-  document.querySelectorAll('#filtros .status-filter:not(#dateFilter)').forEach(dropdown=>{
+  document.querySelectorAll('#filtros .status-filter:not(#dateFilter):not(#sortFilter)').forEach(dropdown=>{
     const toggle = dropdown.querySelector('.status-filter-toggle');
     const selected = dropdown.contains(btn);
     dropdown.classList.remove('open');
@@ -1605,6 +1619,18 @@ document.getElementById('filtros').addEventListener('click', (e)=>{
     toggle.classList.toggle('active', selected);
     toggle.textContent = (selected ? btn.textContent.trim() : toggle.dataset.label) + ' ▾';
   });
+  renderLista();
+});
+document.getElementById('sortFilterMenu').addEventListener('click', e=>{
+  const btn = e.target.closest('[data-sort]');
+  if(!btn) return;
+  currentSort = btn.dataset.sort;
+  document.querySelectorAll('#sortFilterMenu [data-sort]').forEach(option=>{
+    option.classList.toggle('active', option===btn);
+  });
+  const toggle = document.getElementById('sortFilterToggle');
+  toggle.textContent = `${toggle.dataset.label}: ${btn.textContent.trim()} ▾`;
+  cerrarFiltrosDesplegables();
   renderLista();
 });
 function cerrarFiltrosDesplegables(except){
