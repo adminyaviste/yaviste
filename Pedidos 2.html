@@ -248,6 +248,7 @@
   .summary-order-link{padding:0;border:0;background:none;color:var(--teal-dark);font:500 11px 'Inter',sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
   .summary-order-link:hover{text-decoration:underline;}
   .summary-order-empty{margin-top:8px;color:var(--muted);font-size:11px;}
+  .summary-order-note{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   .order-card{
     background:var(--paper-2);
@@ -1207,6 +1208,7 @@ function renderResumen(){
   let porCobrar = 0;
   const hoy = fechaLocalISO();
   let ingresosHoy = 0;
+  const detalleIngresosHoy = [];
   if(currentRole==='admin'){
     pedidosActivos.forEach(o=>{ porCobrar += calcTotales(o).saldo; });
     state.orders.forEach(order=>{
@@ -1215,21 +1217,36 @@ function renderResumen(){
       const total = Math.max(0, calcTotales(order).total);
       const anticipo = Math.min(total, Math.max(0, Number(order.anticipo)||0));
       const saldo = total - anticipo;
+      let ingresoPedido = 0;
 
       if(creadoHoy && order.estatusPago==='pagado'){
-        ingresosHoy += total;
+        ingresoPedido = total;
       }else{
-        if(creadoHoy) ingresosHoy += anticipo;
-        if(pagadoHoy) ingresosHoy += saldo;
+        if(creadoHoy) ingresoPedido += anticipo;
+        if(pagadoHoy) ingresoPedido += saldo;
+      }
+      if(ingresoPedido>0){
+        ingresosHoy += ingresoPedido;
+        detalleIngresosHoy.push({tipo:'pedido', order, monto:ingresoPedido});
       }
     });
     state.commonOrders.forEach(order=>{
       if(esFechaLocalHoy(order.creado, hoy)){
-        ingresosHoy += Math.max(0, Number(order.monto)||0);
+        const monto = Math.max(0, Number(order.monto)||0);
+        if(monto>0){
+          ingresosHoy += monto;
+          detalleIngresosHoy.push({tipo:'comun', order, monto});
+        }
       }
     });
   }
   const entregasHoy = pedidosActivos.filter(o=>o.fechaEntrega===hoy && o.estatus!=='terminado');
+  const listaIngresosHoy = detalleIngresosHoy.length
+    ? `<div class="summary-order-list">${detalleIngresosHoy.map(item=>item.tipo==='pedido'
+        ? `<button class="summary-order-link" type="button" data-order-id="${escapeHtml(String(item.order.id))}">${String(item.order.folio).padStart(4,'0')} · $${fmt(item.monto)}</button>`
+        : `<div class="summary-order-note">Producto común · ${escapeHtml(item.order.producto||'Sin descripción')} · $${fmt(item.monto)}</div>`
+      ).join('')}</div>`
+    : '<div class="summary-order-empty">Sin ingresos registrados hoy</div>';
 
   document.getElementById('resumen').innerHTML = `
     <div class="summary-card">
@@ -1272,7 +1289,7 @@ function renderResumen(){
       ? `<div class="summary-card"><div class="num">$${fmt(porCobrar)}</div><div class="label">Por cobrar (saldos)</div></div>`
       : ''}
     ${currentRole==='admin'
-      ? `<div class="summary-card"><div class="num">$${fmt(ingresosHoy)}</div><div class="label">Ingresos de hoy</div></div>`
+      ? `<div class="summary-card"><div class="num">$${fmt(ingresosHoy)}</div><div class="label">Ingresos de hoy</div>${listaIngresosHoy}</div>`
       : ''}
   `;
 }
