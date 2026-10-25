@@ -353,7 +353,7 @@
   }
   .order-detail+.order-detail{margin-top:5px;padding-top:5px;border-top:1px solid rgba(0,105,100,.14);}
   .order-detail-name{overflow-wrap:anywhere;}
-  .order-detail-quantity{flex:none;font-size:12px;white-space:nowrap;}
+  .order-detail-quantity{flex:none;font-size:12px;font-weight:700;white-space:nowrap;}
   .order-notes{
     margin-top:7px;
     padding:8px 10px;
@@ -1478,8 +1478,8 @@ function renderLista(){
     const restringido = pedidoEmpleadoRestringido(o);
     const detallesPedido = (o.productos||[]).map(producto=>`
       <div class="order-detail">
-        <span class="order-detail-name">${escapeHtml(producto.desc||'Sin descripción')}</span>
         <span class="order-detail-quantity">Cant. ${escapeHtml(String(producto.cantidad??''))}</span>
+        <span class="order-detail-name">${escapeHtml(producto.desc||'Sin descripción')}</span>
       </div>
     `).join('');
     const notasInternas = String(o.notas||'').trim();
